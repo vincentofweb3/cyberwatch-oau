@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -32,6 +34,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local database and private evidence storage
+/data/*.db
+/data/*.db-*
+/storage/evidence/*
+!/storage/evidence/.gitkeep
 
 # vercel
 .vercel
