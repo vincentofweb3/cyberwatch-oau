@@ -47,8 +47,8 @@ Authorized responder ─────>│ Server Components       │
                            │ Data Access Layer       │
                            └───────────┬─────────────┘
                                        v
-                               SQLite (local/demo)
-                               PostgreSQL (target)
+                               PostgreSQL on Neon
+                               SQLite (legacy import only)
 ```
 
 ## 5. Runtime architecture
@@ -69,8 +69,11 @@ Authorized responder ─────>│ Server Components       │
 ### Data layer
 
 - Drizzle ORM defines the schema and migrations.
-- `better-sqlite3` provides a zero-service local database for demonstrations and assessment.
-- The schema avoids SQLite-specific business logic so it can be migrated to PostgreSQL.
+- A bounded `pg` connection pool connects the Node.js runtime to Neon PostgreSQL with certificate-verified TLS. Migrations use a direct connection.
+- PostgreSQL migrations live in `drizzle/postgres`. Timestamps retain millisecond precision; booleans and JSON audit metadata use native types.
+- Report creation, analyst updates, and alert creation await their transactions before returning. Concurrent incident updates check the stored version; alert slug conflicts are handled without partial writes.
+- The read-only SQLite importer creates a consistent backup and verifies all five imported tables before committing. An identical repeat is safe, and different target records are never overwritten.
+- Tests use PGlite locally or dedicated temporary PostgreSQL schemas. SQLite is a development dependency for legacy import only.
 
 ### Authentication and authorization
 
@@ -150,8 +153,8 @@ Rules:
 ### Demonstration deployment
 
 - Node.js 22+
-- Persistent disk
-- SQLite database
+- Hosted PostgreSQL (Neon)
+- Server-side pooled database URL and direct migration URL
 - HTTPS reverse proxy
 
 ### Institutional deployment target

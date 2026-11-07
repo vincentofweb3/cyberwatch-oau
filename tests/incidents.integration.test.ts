@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { hash } from "bcryptjs";
+import { createTestDatabase } from "./helpers/database";
+import { users } from "@/db/schema";
+import type { ReportIncidentInput } from "@/lib/validators";
 
 const actor = {
   id: "90000000-0000-4000-8000-000000000001",
@@ -11,142 +11,236 @@ const actor = {
   role: "ANALYST" as const,
 };
 
+let database: Awaited<ReturnType<typeof createTestDatabase>>;
+vi.mock("@/db/client", () => ({
+  get db() {
+    return database.db;
+  },
+}));
 vi.mock("@/lib/dal/session", () => ({
   getResponderForAction: vi.fn(async () => actor),
   requireResponder: vi.fn(async () => actor),
 }));
 
-let testDirectory: string;
-let sqlite: (typeof import("@/db/client"))["sqlite"];
-let createPublicIncident: (typeof import("@/lib/dal/incidents"))["createPublicIncident"];
-let trackPublicIncident: (typeof import("@/lib/dal/incidents"))["trackPublicIncident"];
-let updateIncident: (typeof import("@/lib/dal/incidents"))["updateIncident"];
-let listPublishedAlerts: (typeof import("@/lib/dal/alerts"))["listPublishedAlerts"];
-let createAlert: (typeof import("@/lib/dal/alerts"))["createAlert"];
-let verifyCredentials: (typeof import("@/lib/dal/auth"))["verifyCredentials"];
+let incidents: typeof import("@/lib/dal/incidents");
+let alerts: typeof import("@/lib/dal/alerts");
+let auth: typeof import("@/lib/dal/auth");
+let session: typeof import("@/lib/dal/session");
 
 beforeAll(async () => {
-  testDirectory = mkdtempSync(join(tmpdir(), "cyberwatch-test-"));
-  process.env.DATABASE_URL = join(testDirectory, "integration.db");
-  delete (globalThis as { cyberwatchSqlite?: unknown }).cyberwatchSqlite;
-  vi.resetModules();
+  database = await createTestDatabase();
+  await database.db
+    .insert(users)
+    .values({ ...actor, passwordHash: await hash("Analyst!2026", 4), isActive: true });
+  incidents = await import("@/lib/dal/incidents");
+  alerts = await import("@/lib/dal/alerts");
+  auth = await import("@/lib/dal/auth");
+  session = await import("@/lib/dal/session");
+}, 60_000);
 
-  const client = await import("@/db/client");
-  sqlite = client.sqlite;
-  const migration = readFileSync(join(process.cwd(), "drizzle/0000_nosy_magus.sql"), "utf8");
-  for (const statement of migration.split("--> statement-breakpoint")) {
-    if (statement.trim()) sqlite.exec(statement);
-  }
-
-  const passwordHash = await hash("Analyst!2026", 4);
-  sqlite
-    .prepare(
-      "INSERT INTO users (id, full_name, email, password_hash, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
-    )
-    .run(actor.id, actor.fullName, actor.email, passwordHash, actor.role, Date.now(), Date.now());
-
-  ({ createPublicIncident, trackPublicIncident, updateIncident } =
-    await import("@/lib/dal/incidents"));
-  ({ listPublishedAlerts, createAlert } = await import("@/lib/dal/alerts"));
-  ({ verifyCredentials } = await import("@/lib/dal/auth"));
+beforeEach(async () => {
+  vi.clearAllMocks();
+  await database.query("TRUNCATE audit_logs, incident_events, alerts, incidents");
+  await database.query("UPDATE users SET is_active = true");
 });
 
-afterAll(() => {
-  sqlite?.close();
-  delete (globalThis as { cyberwatchSqlite?: unknown }).cyberwatchSqlite;
-  if (testDirectory) rmSync(testDirectory, { recursive: true, force: true });
-  delete process.env.DATABASE_URL;
-});
+afterAll(async () => {
+  await database?.close();
+}, 30_000);
 
-describe("incident and alert persistence", () => {
-  it("accepts only the correct active responder credentials", async () => {
-    await expect(verifyCredentials(actor.email, "Analyst!2026")).resolves.toMatchObject({
-      id: actor.id,
-      role: "ANALYST",
-    });
-    await expect(verifyCredentials(actor.email, "wrong-password")).resolves.toBeNull();
+function createReport(overrides: Partial<ReportIncidentInput> = {}) {
+  return incidents.createPublicIncident({
+    category: "PHISHING",
+    channel: "EMAIL",
+    title: "Suspicious student support login request",
+    description:
+      "A message directed me to a lookalike login page and asked for an OTP. I closed it without entering details.",
+    impact: "LOW",
+    anonymous: true,
+    consent: true,
+    ...overrides,
+  });
+}
+
+async function firstIncident() {
+  const [row] = await database.query<{ id: string; status: string; version: number }>(
+    "SELECT id, status, version FROM incidents LIMIT 1",
+  );
+  return row;
+}
+
+const publicAlert = {
+  title: "Published test alert",
+  summary: "This published alert should be visible to everyone.",
+  content: "Use a known official channel to verify unusual requests before taking action.",
+  severity: "MEDIUM" as const,
+  tlp: "CLEAR" as const,
+  status: "PUBLISHED" as const,
+};
+
+describe("PostgreSQL incident and alert persistence", () => {
+  it("accepts only correct credentials for an active responder and records the login time", async () => {
+    const user = await auth.verifyCredentials(actor.email, "Analyst!2026");
+    expect(user).toMatchObject({ id: actor.id, role: "ANALYST" });
+    expect(user).not.toHaveProperty("passwordHash");
+    expect(await auth.verifyCredentials(actor.email, "wrong-password")).toBeNull();
+    const [stored] = await database.query("SELECT last_login_at FROM users WHERE id = $1", [
+      actor.id,
+    ]);
+    expect(stored.last_login_at).toBeInstanceOf(Date);
+    await database.query("UPDATE users SET is_active = false WHERE id = $1", [actor.id]);
+    expect(await auth.verifyCredentials(actor.email, "Analyst!2026")).toBeNull();
   });
 
-  it("creates an anonymous report and exposes only the public tracking DTO", async () => {
-    const receipt = await createPublicIncident({
-      category: "PHISHING",
-      channel: "EMAIL",
-      title: "Suspicious student support login request",
-      description:
-        "A message directed me to a lookalike login page and asked for an OTP. I closed it without entering details.",
-      impact: "LOW",
-      anonymous: true,
-      consent: true,
+  it("commits the report and timeline before returning and keeps tracking information private", async () => {
+    const receipt = await createReport({
+      reporterName: "Discard this name",
+      reporterEmail: "discard@example.test",
+      occurredAt: "2026-11-07T12:34:56.789Z",
     });
-
-    const tracked = await trackPublicIncident(receipt.referenceCode, receipt.trackingKey);
-    expect(tracked).not.toBeNull();
-    expect(tracked).toMatchObject({
-      referenceCode: receipt.referenceCode,
-      status: "NEW",
-      title: "Suspicious student support login request",
-    });
+    const tracked = await incidents.trackPublicIncident(receipt.referenceCode, receipt.trackingKey);
+    expect(tracked).toMatchObject({ referenceCode: receipt.referenceCode, status: "NEW" });
     expect(tracked?.events).toHaveLength(1);
-    expect(tracked).not.toHaveProperty("trackingKeyHash");
-    expect(tracked).not.toHaveProperty("description");
-    expect(tracked).not.toHaveProperty("reporterEmail");
-    expect(await trackPublicIncident(receipt.referenceCode, "AAAA-BBBB-CCCC-DDDD")).toBeNull();
+    for (const field of ["trackingKeyHash", "description", "reporterEmail", "reporterName"])
+      expect(tracked).not.toHaveProperty(field);
+    const [stored] = await database.query(
+      "SELECT anonymous, reporter_name, reporter_email, tracking_key_hash, occurred_at FROM incidents",
+    );
+    expect(stored).toMatchObject({ anonymous: true, reporter_name: null, reporter_email: null });
+    expect(stored.tracking_key_hash).not.toBe(receipt.trackingKey);
+    expect((stored.occurred_at as Date).toISOString()).toBe("2026-11-07T12:34:56.789Z");
+    expect(
+      await incidents.trackPublicIncident(receipt.referenceCode, "AAAA-BBBB-CCCC-DDDD"),
+    ).toBeNull();
   });
 
-  it("records reporter-visible lifecycle updates and a privileged audit event", async () => {
-    const incident = sqlite.prepare("SELECT id FROM incidents LIMIT 1").get() as { id: string };
-    await updateIncident({
+  it("rolls back a report when its initial timeline insert fails", async () => {
+    await database.query(
+      "ALTER TABLE incident_events ADD CONSTRAINT reject_submission CHECK (event_type <> 'SUBMITTED')",
+    );
+    try {
+      await expect(createReport()).rejects.toThrow();
+      expect(await database.query("SELECT id FROM incidents")).toHaveLength(0);
+    } finally {
+      await database.query("ALTER TABLE incident_events DROP CONSTRAINT reject_submission");
+    }
+  });
+
+  it("keeps internal notes private and stores explicit reporter updates plus audit metadata", async () => {
+    const receipt = await createReport();
+    const incident = await firstIncident();
+    await incidents.updateIncident({
       incidentId: incident.id,
       status: "TRIAGED",
       severity: "HIGH",
       assignment: "SELF",
-      note: "The sender has been confirmed as suspicious. Do not reply.",
+      note: "Internal analysis only.",
+      visibleToReporter: false,
+    });
+    let tracked = await incidents.trackPublicIncident(receipt.referenceCode, receipt.trackingKey);
+    expect(tracked?.status).toBe("TRIAGED");
+    expect(tracked?.events).toHaveLength(1);
+    await incidents.updateIncident({
+      incidentId: incident.id,
+      status: "TRIAGED",
+      severity: "HIGH",
+      assignment: "KEEP",
+      note: "Do not reply to the sender.",
       visibleToReporter: true,
     });
-
-    const updated = sqlite
-      .prepare("SELECT status, severity, assigned_to_id FROM incidents WHERE id = ?")
-      .get(incident.id) as { status: string; severity: string; assigned_to_id: string };
-    const visibleEvent = sqlite
-      .prepare(
-        "SELECT note, visible_to_reporter FROM incident_events WHERE incident_id = ? AND event_type = 'STATUS_CHANGED'",
-      )
-      .get(incident.id) as { note: string; visible_to_reporter: number };
-    const audit = sqlite
-      .prepare("SELECT action, metadata FROM audit_logs WHERE entity_id = ?")
-      .get(incident.id) as { action: string; metadata: string };
-
-    expect(updated).toEqual({ status: "TRIAGED", severity: "HIGH", assigned_to_id: actor.id });
-    expect(visibleEvent.visible_to_reporter).toBe(1);
-    expect(visibleEvent.note).toContain("confirmed as suspicious");
-    expect(audit.action).toBe("incident.updated");
-    expect(audit.metadata).not.toContain("sender has been confirmed");
+    tracked = await incidents.trackPublicIncident(receipt.referenceCode, receipt.trackingKey);
+    expect(tracked?.events).toHaveLength(2);
+    expect(tracked?.events[1].note).toBe("Do not reply to the sender.");
+    const detail = await incidents.getIncidentDetail(incident.id);
+    expect(detail).toMatchObject({ assignedToId: actor.id, severity: "HIGH", version: 3 });
+    expect(detail?.events.some((event) => event.note === "Internal analysis only.")).toBe(true);
+    const audits = await database.query("SELECT metadata FROM audit_logs");
+    expect(audits).toHaveLength(2);
+    expect(audits[0].metadata).toMatchObject({ toStatus: "TRIAGED" });
+    expect(JSON.stringify(audits)).not.toContain("Internal analysis");
   });
 
-  it("never includes draft alerts in the public query", async () => {
-    await createAlert({
-      title: "Published test alert",
-      summary: "This published alert should be visible to everyone.",
-      content: "Use a known official channel to verify unusual requests before taking action.",
-      severity: "MEDIUM",
-      tlp: "CLEAR",
-      status: "PUBLISHED",
+  it("rolls back an update if a related history entry fails", async () => {
+    await createReport();
+    const incident = await firstIncident();
+    vi.mocked(session.getResponderForAction).mockResolvedValueOnce({
+      ...actor,
+      id: "90000000-0000-4000-8000-000000000099",
     });
-    await createAlert({
-      title: "Internal draft alert",
-      summary: "This draft must not appear in the public response.",
-      content: "Draft content for internal review and verification before public release.",
-      severity: "HIGH",
-      tlp: "AMBER",
-      status: "DRAFT",
-    });
+    await expect(
+      incidents.updateIncident({
+        incidentId: incident.id,
+        status: "TRIAGED",
+        severity: "HIGH",
+        assignment: "KEEP",
+        note: "This update must roll back.",
+        visibleToReporter: true,
+      }),
+    ).rejects.toThrow();
+    expect(await firstIncident()).toMatchObject({ status: "NEW", version: 1 });
+    expect(await database.query("SELECT id FROM incident_events")).toHaveLength(1);
+    expect(await database.query("SELECT id FROM audit_logs")).toHaveLength(0);
+  });
 
-    const publicAlerts = await listPublishedAlerts();
-    expect(publicAlerts.map((alert) => alert.slug)).toContain("published-test-alert");
-    expect(publicAlerts.map((alert) => alert.slug)).not.toContain("internal-draft-alert");
-    const alertAudits = sqlite
-      .prepare("SELECT count(*) AS count FROM audit_logs WHERE entity_type = 'alert'")
-      .get() as { count: number };
-    expect(alertAudits.count).toBe(2);
+  it("rejects invalid transitions and unauthorized mutations without changing the report", async () => {
+    await createReport();
+    const incident = await firstIncident();
+    const input = {
+      incidentId: incident.id,
+      status: "CLOSED" as const,
+      severity: "LOW" as const,
+      assignment: "KEEP" as const,
+      note: "",
+      visibleToReporter: false,
+    };
+    await expect(incidents.updateIncident(input)).rejects.toThrow("cannot move");
+    vi.mocked(session.getResponderForAction).mockResolvedValueOnce(null);
+    await expect(incidents.updateIncident(input)).rejects.toThrow("session has expired");
+    vi.mocked(session.getResponderForAction).mockResolvedValueOnce(null);
+    await expect(alerts.createAlert(publicAlert)).rejects.toThrow("session has expired");
+    expect(await firstIncident()).toMatchObject({ status: "NEW", version: 1 });
+    expect(await database.query("SELECT id FROM audit_logs")).toHaveLength(0);
+  });
+
+  it("keeps case-insensitive queue searches and correctly converts aggregate counts", async () => {
+    expect((await incidents.getDashboardOverview()).totals).toEqual({
+      total: 0,
+      newCount: 0,
+      activeCount: 0,
+      criticalCount: 0,
+      unassignedCount: 0,
+      resolvedCount: 0,
+    });
+    await createReport({ impact: "CRITICAL" });
+    expect(
+      await incidents.listIncidents({ query: "STUDENT SUPPORT", status: "NEW", unassigned: true }),
+    ).toHaveLength(1);
+    expect((await incidents.getDashboardOverview()).totals).toMatchObject({
+      total: 1,
+      newCount: 1,
+      criticalCount: 1,
+      unassignedCount: 1,
+    });
+  });
+
+  it("excludes drafts and handles simultaneous duplicate alert titles without losing audits", async () => {
+    const created = await Promise.all([
+      alerts.createAlert(publicAlert),
+      alerts.createAlert(publicAlert),
+    ]);
+    expect(new Set(created.map((alert) => alert.slug)).size).toBe(2);
+    await alerts.createAlert({
+      ...publicAlert,
+      title: "Internal draft alert",
+      status: "DRAFT",
+      tlp: "AMBER",
+    });
+    const published = await alerts.listPublishedAlerts();
+    expect(published).toHaveLength(2);
+    expect(published.every((alert) => alert.publishedAt instanceof Date)).toBe(true);
+    expect(await alerts.listAllAlerts()).toHaveLength(3);
+    expect(
+      await database.query("SELECT id FROM audit_logs WHERE entity_type = 'alert'"),
+    ).toHaveLength(3);
   });
 });

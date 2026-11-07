@@ -1,14 +1,14 @@
 # GitHub, Neon, Resend, and Vercel setup
 
-The current checkpoint is the tested SQLite demonstration. Hosted PostgreSQL and email delivery are the next implementation phase; they are not active in this version.
+The PostgreSQL migration is implemented and the existing SQLite records have been imported into Neon. Email delivery and Vercel deployment remain the next phase.
 
 Repository: <https://github.com/vincentofweb3/cyberwatch-oau>
 
 ## 1. Preserve the tested application on GitHub
 
-Commit and push the current application before changing its database. Local secrets (`.env.local`), SQLite database files, private evidence, dependencies, build output, and browser artifacts remain excluded from Git. Only `.env.example` contains shareable configuration examples.
+The tested SQLite checkpoint was committed and pushed as `9f497bc` before the PostgreSQL migration. Local secrets (`.env.local`), SQLite database files, private evidence, dependencies, build output, and browser artifacts remain excluded from Git. Only `.env.example` contains shareable configuration examples.
 
-The checkpoint has passed lint, TypeScript, 14 unit/integration tests, 8 desktop/mobile browser tests, a production build, HTTP smoke checks, and homepage/dashboard screenshot review. Those checks validate the current SQLite version, not the planned hosted integration.
+The earlier checkpoint passed the SQLite verification suite. See `docs/testing.md` and `HANDOFF.md` for the current PostgreSQL checks.
 
 ## 2. Create the hosted database in Neon
 
@@ -20,18 +20,18 @@ The checkpoint has passed lint, TypeScript, 14 unit/integration tests, 8 desktop
 
 These connection strings contain a database password. Keep them in environment settings and out of chat, source code, and Git.
 
-**Keep the existing `DATABASE_URL` unchanged for now.** This checkpoint still expects a SQLite file path. Adding a PostgreSQL URL to that setting before the code migration will break the running application. The `NEON_*` settings above are preparation values; the current app does not consume them.
+The app now accepts PostgreSQL URLs. Set `DATABASE_URL` to the pooled URL and `DATABASE_MIGRATION_URL` to the direct URL. `NEON_DATABASE_URL` and `NEON_DIRECT_URL` are also supported as fallback aliases when the corresponding standard setting is empty. A local SQLite path is no longer a valid runtime `DATABASE_URL`.
 
-The implementation phase will:
+The migration provides:
 
-- replace the SQLite connection and schema with PostgreSQL equivalents;
-- convert synchronous queries and transactions to the hosted driver's asynchronous API;
-- create and apply PostgreSQL migrations;
-- update report, tracking, authentication, alert, audit, and integration-test paths;
-- preserve the existing local database and explicitly handle any data transfer;
-- configure runtime and migration connection settings, then verify persistence against Neon.
+- PostgreSQL tables, timezone-aware millisecond timestamps, boolean fields, JSON audit metadata, indexes, and foreign keys;
+- asynchronous report/update/alert transactions, conflict detection, and case-insensitive queue search;
+- a pooled runtime connection and a separate direct migration connection;
+- `pnpm db:migrate` for the schema, and `pnpm db:import-sqlite --apply` for an existing local installation;
+- a consistent local SQLite backup and full-field verification before the import commits;
+- isolated PostgreSQL integration and browser-test schemas.
 
-Changing the environment variable alone does not migrate the database. The code and schema migration must happen first. Avoid seeding public demo passwords into a shared deployment; create the hosted responder account with deployment-specific credentials.
+The completed import preserved 2 accounts, 4 reports, 6 timeline entries, and 2 advisories. The source SQLite database remains available locally. `pnpm db:setup` now applies migrations only. Demo seeding requires `--demo` and explicit passwords, and should be used only on a dedicated demo database. Change inherited demo credentials before a shared deployment.
 
 Reference: <https://neon.com/docs/get-started-with-neon/connect-neon>
 

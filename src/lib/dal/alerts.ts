@@ -56,49 +56,47 @@ export async function createAlert(input: CreateAlertInput) {
   }
 
   const baseSlug = slugify(input.title) || `alert-${Date.now()}`;
-  let slug = baseSlug;
-  let suffix = 1;
-
-  while (db.select({ id: alerts.id }).from(alerts).where(eq(alerts.slug, slug)).limit(1).get()) {
-    suffix += 1;
-    slug = `${baseSlug}-${suffix}`;
-  }
-
   const id = createId();
   const now = new Date();
 
-  db.transaction((transaction) => {
-    transaction
-      .insert(alerts)
-      .values({
-        id,
-        title: input.title,
-        slug,
-        summary: input.summary,
-        content: input.content,
-        severity: input.severity,
-        tlp: input.tlp,
-        status: input.status,
-        createdById: actor.id,
-        publishedAt: input.status === "PUBLISHED" ? now : null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
+  return db.transaction(async (transaction) => {
+    let slug = baseSlug;
+    let suffix = 1;
+    while (true) {
+      const created = await transaction
+        .insert(alerts)
+        .values({
+          id,
+          title: input.title,
+          slug,
+          summary: input.summary,
+          content: input.content,
+          severity: input.severity,
+          tlp: input.tlp,
+          status: input.status,
+          createdById: actor.id,
+          publishedAt: input.status === "PUBLISHED" ? now : null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({ target: alerts.slug })
+        .returning({ id: alerts.id });
 
-    transaction
-      .insert(auditLogs)
-      .values({
-        id: createId(),
-        actorId: actor.id,
-        action: input.status === "PUBLISHED" ? "alert.published" : "alert.created",
-        entityType: "alert",
-        entityId: id,
-        metadata: { slug, severity: input.severity, tlp: input.tlp },
-        createdAt: now,
-      })
-      .run();
+      if (created.length) break;
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+    }
+
+    await transaction.insert(auditLogs).values({
+      id: createId(),
+      actorId: actor.id,
+      action: input.status === "PUBLISHED" ? "alert.published" : "alert.created",
+      entityType: "alert",
+      entityId: id,
+      metadata: { slug, severity: input.severity, tlp: input.tlp },
+      createdAt: now,
+    });
+
+    return { success: true, slug };
   });
-
-  return { success: true, slug };
 }

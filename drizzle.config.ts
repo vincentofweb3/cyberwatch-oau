@@ -1,12 +1,14 @@
 import { defineConfig } from "drizzle-kit";
+import "./scripts/env";
+import { getMigrationUrl } from "./src/db/config";
 
 export default defineConfig({
-  dialect: "sqlite",
+  dialect: "postgresql",
   schema: "./src/db/schema.ts",
-  out: "./drizzle",
+  out: "./drizzle/postgres",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "./data/cyberwatch.db",
+    url: getMigrationUrl(),
   },
   strict: true,
-  verbose: true,
+  verbose: false,
 });

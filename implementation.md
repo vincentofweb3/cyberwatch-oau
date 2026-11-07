@@ -68,9 +68,24 @@ This file is the execution ledger. Any future agent should update the checkboxes
 - [x] Document report processing, database tables, analyst responsibilities, and proposed additions in `docs/data-and-analyst-guide.md`.
 - [x] Correct existing browser-test selectors/loading assumptions; pass all 8 desktop/mobile tests.
 
+## PostgreSQL migration
+
+- [x] Validate both saved Neon URLs without disclosing credentials.
+- [x] Adopt PostgreSQL tables, native booleans/JSON, millisecond timezone-aware timestamps, and a pooled runtime connection.
+- [x] Convert all report/update/alert transactions to awaited asynchronous operations and retain safe DTOs and authorization.
+- [x] Add optimistic conflict handling and conflict-safe advisory slugs; preserve case-insensitive searches.
+- [x] Generate and apply the PostgreSQL migrations through the direct connection.
+- [x] Back up SQLite, import all five tables, verify every field, and activate the local PostgreSQL runtime settings.
+- [x] Add rollback, privacy, timestamp, import-repeat, and import-conflict tests; pass 21 local tests and 11 live Neon tests.
+- [x] Pass lint, TypeScript, and production build.
+- [x] Complete all 10 desktop/mobile browser checks against an isolated PostgreSQL schema and remove its server and schema afterwards.
+- [x] Commit and push the verified PostgreSQL migration.
+
 ## Verification record
 
-On 2026-11-07, prepared the tested application checkpoint for the user's GitHub repository and documented the Neon, Resend, and Vercel setup sequence in `docs/deployment-setup.md`. Local secrets, database files, and test artifacts were checked for Git exclusion. Hosted database and email integration are the next phase and remain unimplemented.
+On 2026-11-07, prepared the tested application checkpoint for the user's GitHub repository and documented the Neon, Resend, and Vercel setup sequence in `docs/deployment-setup.md`. Local secrets, database files, and test artifacts were checked for Git exclusion. That checkpoint preceded the PostgreSQL work below; email delivery remains a later phase.
+
+The PostgreSQL migration subsequently passed lint, typecheck, 21 local tests, 11 live Neon integration/import tests, the production build, and all 10 desktop/mobile browser tests. The browser suite used an isolated PostgreSQL schema and verified report submission, analyst updates, persistence after reload, and the separation of private notes from reporter-visible updates. The live import preserved all fields across 2 accounts, 4 reports, 6 timeline entries, and 2 advisories; the original SQLite database remains unchanged.
 
 Verified on 2026-11-06:
 
@@ -88,19 +103,21 @@ Verified on 2026-11-06:
 
 ## Definition of done
 
-The MVP is done when a user can submit and privately track a report; an authorized analyst can log in, view the queue, triage and update an incident, and publish an alert; data persists locally; authorization is enforced at the data layer; the application passes lint, typecheck, tests, and production build; and all setup/handoff documents accurately match the repository.
+The MVP is done when a user can submit and privately track a report; an authorized analyst can log in, view the queue, triage and update an incident, and publish an alert; data persists in PostgreSQL; authorization is enforced at the data layer; the application passes lint, typecheck, tests, and production build; and all setup/handoff documents accurately match the repository.
 
 ## Decision log
 
-| Date       | Decision                                               | Reason                                                                                                                |
-| ---------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| 2026-11-06 | Build CyberWatch OAU                                   | Stronger cybersecurity identity and direct evidence of OAU scam/incident-awareness needs                              |
-| 2026-11-06 | Treat the product as an independent academic prototype | Avoid implying institutional authorization or guaranteed incident response                                            |
-| 2026-11-06 | Use public tracking reference + secret key             | Allows anonymous progress checks without collecting an account or excess PII                                          |
-| 2026-11-06 | Use SQLite locally and target PostgreSQL in production | Simple SIWES demonstration with a credible migration path                                                             |
-| 2026-11-06 | Exclude public binary uploads from MVP                 | Safe production uploads require malware scanning, private object storage, retention, and incident-handling procedures |
-| 2026-11-06 | Use custom stateless auth only for the prototype       | Keeps the demo self-contained; institutional deployment must use OAU SSO or a managed auth provider                   |
-| 2026-11-06 | Use Webpack/PostCSS for the production build           | Tailwind's Turbopack adapter needs an internal worker port unavailable in the managed build sandbox                   |
-| 2026-11-06 | Limit build workers to one for the SQLite demo         | Keeps build-time module evaluation deterministic for a single-file local database                                     |
-| 2026-11-06 | Put base styles and custom components into CSS layers  | Lets Tailwind utility colours take effect, fixing selected navigation and themed controls                             |
-| 2026-11-06 | Keep quiz results transient and explain this clearly   | The current quiz is private practice; persistent analytics need an explicit product decision                          |
+| Date       | Decision                                                                   | Reason                                                                                                                |
+| ---------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-06 | Build CyberWatch OAU                                                       | Stronger cybersecurity identity and direct evidence of OAU scam/incident-awareness needs                              |
+| 2026-11-06 | Treat the product as an independent academic prototype                     | Avoid implying institutional authorization or guaranteed incident response                                            |
+| 2026-11-06 | Use public tracking reference + secret key                                 | Allows anonymous progress checks without collecting an account or excess PII                                          |
+| 2026-11-06 | Use SQLite locally and target PostgreSQL in production                     | Simple SIWES demonstration with a credible migration path                                                             |
+| 2026-11-06 | Exclude public binary uploads from MVP                                     | Safe production uploads require malware scanning, private object storage, retention, and incident-handling procedures |
+| 2026-11-06 | Use custom stateless auth only for the prototype                           | Keeps the demo self-contained; institutional deployment must use OAU SSO or a managed auth provider                   |
+| 2026-11-06 | Use Webpack/PostCSS for the production build                               | Tailwind's Turbopack adapter needs an internal worker port unavailable in the managed build sandbox                   |
+| 2026-11-06 | Limit build workers to one for the SQLite demo                             | Keeps build-time module evaluation deterministic for a single-file local database                                     |
+| 2026-11-06 | Put base styles and custom components into CSS layers                      | Lets Tailwind utility colours take effect, fixing selected navigation and themed controls                             |
+| 2026-11-06 | Keep quiz results transient and explain this clearly                       | The current quiz is private practice; persistent analytics need an explicit product decision                          |
+| 2026-11-07 | Use pooled PostgreSQL runtime connections and direct migration connections | Supports Vercel without local runtime database files and keeps transactional migrations separate                      |
+| 2026-11-07 | Import legacy data in one verified transaction after a consistent backup   | Preserves logins, tracking keys, history, and timestamps without overwriting newer hosted data                        |

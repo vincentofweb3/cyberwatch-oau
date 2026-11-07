@@ -2,7 +2,7 @@
 
 ## Where information is saved
 
-The current website uses a real SQLite database, accessed on the server through Drizzle ORM. The default file is `data/cyberwatch.db`; `DATABASE_URL` can point to a different location. Reports persist across page refreshes and server restarts while that file is retained. They are not stored in the visitor's browser.
+The website uses PostgreSQL hosted on Neon, accessed on the server through Drizzle ORM. `DATABASE_URL` selects the pooled runtime connection. Reports persist in the hosted database across page refreshes, local restarts, and deployments. The old `data/cyberwatch.db` file is retained as migration history; the running website no longer saves new reports there.
 
 | Information             | Storage                                | Purpose                                                                                      |
 | ----------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -24,9 +24,9 @@ The quiz resets when the page is left or reloaded. There is currently no quiz hi
 5. Tracking checks both credentials and returns limited report information and only deliberately shared timeline entries. It excludes the full narrative, contact details, internal notes, and responder identities.
 6. An authenticated analyst can update the report. The server checks access and permitted status transitions, then saves the changes, timeline entries, and audit record together.
 
-Public visitors can read published advisories. Full reports require an active analyst or administrator session. Passwords and tracking keys are hashed; the SQLite file itself and the report text are not encrypted by this application. Access control is not the same as encryption.
+Public visitors can read published advisories. Full reports require an active analyst or administrator session. Passwords and tracking keys are hashed. The connection to Neon uses TLS with certificate verification. The app does not separately encrypt each report field; database access and the provider's storage/backup controls remain important.
 
-For hosting, retain the database on persistent disk and arrange consistent SQLite backups. Copying a live database file without accounting for its write-ahead log is not a reliable backup procedure. This version does not provide automated backups or cloud synchronization. A larger deployment should use managed PostgreSQL with tested backup and recovery procedures.
+Review the Neon project's backup, restore, and retention settings before deployment. The SQLite importer made a consistent local backup and verified all imported fields before committing. The app does not provide a separate backup scheduler or ongoing synchronization with the legacy SQLite file.
 
 ## How to use the analyst page
 

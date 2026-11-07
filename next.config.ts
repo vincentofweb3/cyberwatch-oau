@@ -18,7 +18,7 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["pg"],
   experimental: {
     cpus: 1,
     taint: true,

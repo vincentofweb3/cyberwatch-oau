@@ -61,7 +61,7 @@ Controls include minimal public response detail, high-entropy references, generi
 
 - Process-memory rate limits reset and do not coordinate across instances.
 - Custom prototype authentication lacks MFA and enterprise identity lifecycle controls.
-- SQLite does not provide the operational model needed for a multi-instance production service.
+- Hosted PostgreSQL removes reliance on local runtime files; database-role restrictions, backup/restore settings, and retention still need deployment review.
 - Administrators with host/database access can read incident content.
 - No automated malware or URL reputation analysis exists.
 - Legal, disciplinary, emergency, and law-enforcement escalation procedures require institutional policy.

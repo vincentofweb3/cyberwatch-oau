@@ -50,7 +50,7 @@ Security: active analyst/admin session, validation, unique slug, audit event.
 
 ### `GET /api/health`
 
-Returns:
+Checks PostgreSQL connectivity and returns HTTP 200 when the query succeeds:
 
 ```json
 {
@@ -60,4 +60,13 @@ Returns:
 }
 ```
 
-It does not return environment, database path, dependency versions, account counts, or secrets.
+If the database query fails, it returns HTTP 503 with:
+
+```json
+{
+  "status": "unavailable",
+  "service": "cyberwatch-oau"
+}
+```
+
+Both responses use `Cache-Control: no-store`. The endpoint does not return environment settings, connection details, dependency versions, account counts, or secrets.

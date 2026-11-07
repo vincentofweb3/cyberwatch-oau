@@ -1,5 +1,14 @@
 import { relations } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import type {
   AlertStatus,
   EventType,
@@ -13,16 +22,12 @@ import type {
 } from "@/lib/domain";
 
 const createdAtColumn = () =>
-  integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date());
+  timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow();
 
 const updatedAtColumn = () =>
-  integer("updated_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date());
+  timestamp("updated_at", { withTimezone: true, precision: 3 }).notNull().defaultNow();
 
-export const users = sqliteTable(
+export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(),
@@ -30,21 +35,21 @@ export const users = sqliteTable(
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     role: text("role").$type<UserRole>().notNull(),
-    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-    lastLoginAt: integer("last_login_at", { mode: "timestamp_ms" }),
+    isActive: boolean("is_active").notNull().default(true),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true, precision: 3 }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
   (table) => [uniqueIndex("users_email_unique").on(table.email)],
 );
 
-export const incidents = sqliteTable(
+export const incidents = pgTable(
   "incidents",
   {
     id: text("id").primaryKey(),
     referenceCode: text("reference_code").notNull(),
     trackingKeyHash: text("tracking_key_hash").notNull(),
-    anonymous: integer("anonymous", { mode: "boolean" }).notNull().default(true),
+    anonymous: boolean("anonymous").notNull().default(true),
     reporterName: text("reporter_name"),
     reporterEmail: text("reporter_email"),
     reporterPhone: text("reporter_phone"),
@@ -54,7 +59,7 @@ export const incidents = sqliteTable(
     description: text("description").notNull(),
     suspiciousUrl: text("suspicious_url"),
     senderIdentifier: text("sender_identifier"),
-    occurredAt: integer("occurred_at", { mode: "timestamp_ms" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, precision: 3 }),
     impact: text("impact").$type<ImpactLevel>().notNull(),
     severity: text("severity").$type<Severity>().notNull(),
     status: text("status").$type<IncidentStatus>().notNull().default("NEW"),
@@ -62,8 +67,8 @@ export const incidents = sqliteTable(
     assignedToId: text("assigned_to_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    acknowledgedAt: integer("acknowledged_at", { mode: "timestamp_ms" }),
-    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, precision: 3 }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, precision: 3 }),
     version: integer("version").notNull().default(1),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
@@ -78,7 +83,7 @@ export const incidents = sqliteTable(
   ],
 );
 
-export const incidentEvents = sqliteTable(
+export const incidentEvents = pgTable(
   "incident_events",
   {
     id: text("id").primaryKey(),
@@ -90,7 +95,7 @@ export const incidentEvents = sqliteTable(
     fromStatus: text("from_status").$type<IncidentStatus>(),
     toStatus: text("to_status").$type<IncidentStatus>(),
     note: text("note"),
-    visibleToReporter: integer("visible_to_reporter", { mode: "boolean" }).notNull().default(false),
+    visibleToReporter: boolean("visible_to_reporter").notNull().default(false),
     createdAt: createdAtColumn(),
   },
   (table) => [
@@ -99,7 +104,7 @@ export const incidentEvents = sqliteTable(
   ],
 );
 
-export const alerts = sqliteTable(
+export const alerts = pgTable(
   "alerts",
   {
     id: text("id").primaryKey(),
@@ -113,7 +118,7 @@ export const alerts = sqliteTable(
     createdById: text("created_by_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
-    publishedAt: integer("published_at", { mode: "timestamp_ms" }),
+    publishedAt: timestamp("published_at", { withTimezone: true, precision: 3 }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -124,7 +129,7 @@ export const alerts = sqliteTable(
   ],
 );
 
-export const auditLogs = sqliteTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
     id: text("id").primaryKey(),
@@ -132,7 +137,7 @@ export const auditLogs = sqliteTable(
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
-    metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     createdAt: createdAtColumn(),
   },
   (table) => [

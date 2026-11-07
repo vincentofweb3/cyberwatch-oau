@@ -15,7 +15,7 @@ The MVP is implementation-complete:
 - lifecycle validation, reporter-visible versus internal events, and audit records;
 - responsive design system, empty/loading/error/404/auth-gate states, and mobile navigation;
 - Drizzle migration, deterministic seed, health route, security headers, and rate-limit adapters;
-- unit, SQLite integration, production smoke, and Playwright test suites;
+- unit, PostgreSQL/import integration, production smoke, and Playwright test suites;
 - research, architecture, product, security, API, testing, and continuation documentation.
 
 The user-review corrections are also complete:
@@ -26,7 +26,21 @@ The user-review corrections are also complete:
 - The analyst overview includes a four-step workflow guide; the quiz explicitly explains that answers and scores are not saved.
 - [Reports, quizzes, and the analyst workspace](./docs/data-and-analyst-guide.md) explains storage, processing, analyst responsibilities, and proposed next features. Quiz persistence and analytics remain proposals.
 
-## Verified state
+## PostgreSQL migration — 2026-11-07
+
+- Runtime storage now uses Drizzle's PostgreSQL schema and a bounded `pg` connection pool. Neon TLS certificates are verified; migration scripts use the direct connection.
+- The five application tables were created in Neon. Imported and fully verified: 2 accounts, 4 reports, 6 incident events, 2 alerts, and 0 existing audit rows. Existing password hashes, tracking hashes, names, timestamps, and note visibility were preserved.
+- The original SQLite database remains unchanged. A consistent backup is at `data/before-neon-3bbfd908-a8a6-4c66-ae37-f5a9cef2376a.db`. Previous environment settings are preserved in `.env.local.before-neon`; both backups are ignored by Git.
+- `.env.local` now points `DATABASE_URL` at the pooled URL and `DATABASE_MIGRATION_URL` at the direct URL. The `NEON_*` values remain supported fallback aliases. No credentials were committed or printed.
+- `pnpm db:migrate` applies `drizzle/postgres`; the original root SQLite migration is retained for legacy import tests. `pnpm db:setup` no longer seeds data. Optional demo seeding needs `--demo` plus explicit passwords.
+- Report creation, updates, and alerts await their database transactions. Incident version conflicts abort the update; duplicate alert slugs are handled without losing audit records. Case-insensitive search is preserved with PostgreSQL `ILIKE`.
+- `/api/health` now checks the database and returns 503 when it is unavailable, without exposing connection details.
+- Local tests use PGlite; `pnpm test:postgres` runs the same database/import tests in isolated Neon schemas. `pnpm test:e2e` creates its own schema and production server, then cleans both up. Run `pnpm build` first.
+- Passed: lint, typecheck, 21 local tests, 11 live PostgreSQL/import tests, production build, and all 10 desktop/mobile browser tests. The browser suite verified submission, analyst assignment and status changes, reload persistence, private notes, and shared tracking updates; its server and isolated schema were removed afterwards.
+- Formatting and the final credential-exclusion scan passed. The empty schema left by an earlier interrupted test was verified and removed without touching application tables.
+- Resend notifications and Vercel deployment remain unimplemented. The user's email configuration is already in the ignored environment file; preserve it for the next phase. Imported demo account passwords still need replacement before a shared deployment.
+
+## Earlier SQLite checkpoint
 
 On 2026-11-06 the following passed:
 
@@ -60,7 +74,7 @@ For future runs, install normal Playwright system dependencies on the workstatio
 ## Fixed decisions
 
 - Next.js App Router, React, TypeScript, and Tailwind CSS.
-- Drizzle ORM with SQLite for local/demo use; PostgreSQL is the institutional target.
+- Drizzle ORM with PostgreSQL on Neon for runtime storage; SQLite is retained only for the explicit legacy importer and tests.
 - Webpack/PostCSS for production builds in the managed workspace.
 - Stateless signed session cookie for the prototype; OAU SSO/MFA for production.
 - Anonymous public tracking with a reference and one-time secret key.
@@ -78,12 +92,12 @@ These credentials and sample incidents are development-only. The analyst display
 
 ## Recommended next work
 
-The user has selected <https://github.com/vincentofweb3/cyberwatch-oau> for publication and requested Gmail notifications through their existing Resend account, followed by Vercel deployment. The immediate sequence is the GitHub checkpoint, Neon/PostgreSQL migration, Resend delivery with persisted retries, then a verified Vercel preview. See [deployment setup](./docs/deployment-setup.md) for the account-owner steps and implementation scope. Do not replace the SQLite `DATABASE_URL` with a PostgreSQL URL until the database adapter/schema have been migrated. The notification recipient is private configuration and should not be committed.
+The user has selected <https://github.com/vincentofweb3/cyberwatch-oau> for publication and requested Gmail notifications through their existing Resend account, followed by Vercel deployment. The immediate sequence is the GitHub checkpoint, Neon/PostgreSQL migration, Resend delivery with persisted retries, then a verified Vercel preview. See [deployment setup](./docs/deployment-setup.md) for the account-owner steps and implementation scope. The PostgreSQL migration is complete and the local runtime settings have been switched. Next implement persisted Resend notifications, then validate a Vercel preview. The notification recipient is private configuration and should not be committed.
 
 1. Consider a personal assigned queue, follow-up reminders, incident trends, and minimized exports. Decide separately whether quiz analytics should be anonymous or tied to accounts.
 2. Conduct supervised usability testing with students and department responders.
 3. Validate ownership, categories, escalation paths, response targets, and retention with the Computer Centre, CySe Lab, Legal/Data Protection personnel, Corporate Affairs, and campus security.
-4. Before any institutional pilot, replace SQLite, custom auth, and in-memory rate limiting with PostgreSQL, OAU SSO/MFA, and a distributed limiter.
+4. Before any institutional pilot, replace custom auth and in-memory rate limiting with OAU SSO/MFA and a distributed limiter, and review PostgreSQL roles, backup/restore, and retention.
 5. Add private evidence storage only after quarantine, malware scanning, authorization, retention, and safe-download procedures are approved.
 
 ## Resume checklist

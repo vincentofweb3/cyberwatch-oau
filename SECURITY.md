@@ -21,7 +21,7 @@ Include:
 - HTTPS is mandatory outside localhost.
 - Production secrets must come from a secret manager.
 - Seed credentials are development-only.
-- SQLite is suitable for a local demonstration, not a multi-instance university deployment.
+- Runtime storage is PostgreSQL; keep pooled and direct connection URLs server-side. Neon TLS certificates are verified. SQLite is used only by the explicit legacy importer and tests.
 - A public deployment must add distributed rate limiting, monitoring, backups, data retention, OAU identity integration, and private scanned evidence storage.
 
 ## Supported versions

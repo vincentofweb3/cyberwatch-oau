@@ -3,6 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
@@ -10,12 +12,14 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  webServer: {
-    command: "pnpm dev --hostname 127.0.0.1",
-    url: "http://127.0.0.1:3000/api/health",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: "pnpm dev --hostname 127.0.0.1",
+        url: "http://127.0.0.1:3000/api/health",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },

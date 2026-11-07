@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, desc, eq, isNull, like, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, isNull, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import { auditLogs, incidentEvents, incidents, users } from "@/db/schema";
 import {
@@ -67,46 +67,40 @@ export async function createPublicIncident(input: ReportIncidentInput): Promise<
   const now = new Date();
   const severity = severityFromImpact(input.impact);
 
-  db.transaction((transaction) => {
-    transaction
-      .insert(incidents)
-      .values({
-        id,
-        referenceCode,
-        trackingKeyHash: hashTrackingKey(trackingKey),
-        anonymous: input.anonymous,
-        reporterName: input.anonymous ? null : (input.reporterName ?? null),
-        reporterEmail: input.anonymous ? null : (input.reporterEmail ?? null),
-        reporterPhone: input.anonymous ? null : (input.reporterPhone ?? null),
-        category: input.category,
-        channel: input.channel,
-        title: input.title,
-        description: input.description,
-        suspiciousUrl: input.suspiciousUrl ?? null,
-        senderIdentifier: input.senderIdentifier ?? null,
-        occurredAt: parseOccurredAt(input.occurredAt),
-        impact: input.impact,
-        severity,
-        status: "NEW",
-        tlp: "AMBER",
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
+  await db.transaction(async (transaction) => {
+    await transaction.insert(incidents).values({
+      id,
+      referenceCode,
+      trackingKeyHash: hashTrackingKey(trackingKey),
+      anonymous: input.anonymous,
+      reporterName: input.anonymous ? null : (input.reporterName ?? null),
+      reporterEmail: input.anonymous ? null : (input.reporterEmail ?? null),
+      reporterPhone: input.anonymous ? null : (input.reporterPhone ?? null),
+      category: input.category,
+      channel: input.channel,
+      title: input.title,
+      description: input.description,
+      suspiciousUrl: input.suspiciousUrl ?? null,
+      senderIdentifier: input.senderIdentifier ?? null,
+      occurredAt: parseOccurredAt(input.occurredAt),
+      impact: input.impact,
+      severity,
+      status: "NEW",
+      tlp: "AMBER",
+      createdAt: now,
+      updatedAt: now,
+    });
 
-    transaction
-      .insert(incidentEvents)
-      .values({
-        id: createId(),
-        incidentId: id,
-        actorId: null,
-        eventType: "SUBMITTED",
-        toStatus: "NEW",
-        note: "Your report was received and is awaiting triage.",
-        visibleToReporter: true,
-        createdAt: now,
-      })
-      .run();
+    await transaction.insert(incidentEvents).values({
+      id: createId(),
+      incidentId: id,
+      actorId: null,
+      eventType: "SUBMITTED",
+      toStatus: "NEW",
+      note: "Your report was received and is awaiting triage.",
+      visibleToReporter: true,
+      createdAt: now,
+    });
   });
 
   return {
@@ -187,9 +181,9 @@ export async function listIncidents(filters: IncidentFilters = {}) {
     const pattern = `%${filters.query.trim()}%`;
     conditions.push(
       or(
-        like(incidents.referenceCode, pattern),
-        like(incidents.title, pattern),
-        like(incidents.senderIdentifier, pattern),
+        ilike(incidents.referenceCode, pattern),
+        ilike(incidents.title, pattern),
+        ilike(incidents.senderIdentifier, pattern),
       )!,
     );
   }
@@ -310,13 +304,12 @@ export async function updateIncident(input: IncidentUpdateInput) {
     throw new ActionError("Your session has expired. Sign in again.");
   }
 
-  return db.transaction((transaction) => {
-    const existing = transaction
+  return db.transaction(async (transaction) => {
+    const [existing] = await transaction
       .select()
       .from(incidents)
       .where(eq(incidents.id, input.incidentId))
-      .limit(1)
-      .get();
+      .limit(1);
 
     if (!existing) {
       throw new ActionError("Incident not found.");
@@ -342,7 +335,7 @@ export async function updateIncident(input: IncidentUpdateInput) {
       throw new ActionError("No changes were provided.");
     }
 
-    transaction
+    const updated = await transaction
       .update(incidents)
       .set({
         status: input.status,
@@ -358,104 +351,92 @@ export async function updateIncident(input: IncidentUpdateInput) {
         updatedAt: now,
       })
       .where(and(eq(incidents.id, input.incidentId), eq(incidents.version, existing.version)))
-      .run();
+      .returning({ id: incidents.id });
+
+    if (!updated.length) {
+      throw new ActionError(
+        "Another responder updated this incident. Refresh the report and try again.",
+      );
+    }
 
     if (statusChanged) {
-      transaction
-        .insert(incidentEvents)
-        .values({
-          id: createId(),
-          incidentId: existing.id,
-          actorId: actor.id,
-          eventType: "STATUS_CHANGED",
-          fromStatus: existing.status,
-          toStatus: input.status,
-          note: input.visibleToReporter && input.note ? input.note : null,
-          visibleToReporter: input.visibleToReporter,
-          createdAt: now,
-        })
-        .run();
+      await transaction.insert(incidentEvents).values({
+        id: createId(),
+        incidentId: existing.id,
+        actorId: actor.id,
+        eventType: "STATUS_CHANGED",
+        fromStatus: existing.status,
+        toStatus: input.status,
+        note: input.visibleToReporter && input.note ? input.note : null,
+        visibleToReporter: input.visibleToReporter,
+        createdAt: now,
+      });
     }
 
     if (severityChanged) {
-      transaction
-        .insert(incidentEvents)
-        .values({
-          id: createId(),
-          incidentId: existing.id,
-          actorId: actor.id,
-          eventType: "SEVERITY_CHANGED",
-          note: `Severity changed from ${existing.severity} to ${input.severity}.`,
-          visibleToReporter: false,
-          createdAt: now,
-        })
-        .run();
+      await transaction.insert(incidentEvents).values({
+        id: createId(),
+        incidentId: existing.id,
+        actorId: actor.id,
+        eventType: "SEVERITY_CHANGED",
+        note: `Severity changed from ${existing.severity} to ${input.severity}.`,
+        visibleToReporter: false,
+        createdAt: now,
+      });
     }
 
     if (assignmentChanged) {
-      transaction
-        .insert(incidentEvents)
-        .values({
-          id: createId(),
-          incidentId: existing.id,
-          actorId: actor.id,
-          eventType: "ASSIGNED",
-          note: assignedToId
-            ? "Incident assigned to a responder."
-            : "Incident returned to the unassigned queue.",
-          visibleToReporter: false,
-          createdAt: now,
-        })
-        .run();
+      await transaction.insert(incidentEvents).values({
+        id: createId(),
+        incidentId: existing.id,
+        actorId: actor.id,
+        eventType: "ASSIGNED",
+        note: assignedToId
+          ? "Incident assigned to a responder."
+          : "Incident returned to the unassigned queue.",
+        visibleToReporter: false,
+        createdAt: now,
+      });
     }
 
     if (hasNote && !statusChanged) {
-      transaction
-        .insert(incidentEvents)
-        .values({
-          id: createId(),
-          incidentId: existing.id,
-          actorId: actor.id,
-          eventType: input.visibleToReporter ? "REPORTER_UPDATE" : "NOTE_ADDED",
-          note: input.note,
-          visibleToReporter: input.visibleToReporter,
-          createdAt: now,
-        })
-        .run();
+      await transaction.insert(incidentEvents).values({
+        id: createId(),
+        incidentId: existing.id,
+        actorId: actor.id,
+        eventType: input.visibleToReporter ? "REPORTER_UPDATE" : "NOTE_ADDED",
+        note: input.note,
+        visibleToReporter: input.visibleToReporter,
+        createdAt: now,
+      });
     } else if (hasNote && statusChanged && !input.visibleToReporter) {
-      transaction
-        .insert(incidentEvents)
-        .values({
-          id: createId(),
-          incidentId: existing.id,
-          actorId: actor.id,
-          eventType: "NOTE_ADDED",
-          note: input.note,
-          visibleToReporter: false,
-          createdAt: now,
-        })
-        .run();
+      await transaction.insert(incidentEvents).values({
+        id: createId(),
+        incidentId: existing.id,
+        actorId: actor.id,
+        eventType: "NOTE_ADDED",
+        note: input.note,
+        visibleToReporter: false,
+        createdAt: now,
+      });
     }
 
-    transaction
-      .insert(auditLogs)
-      .values({
-        id: createId(),
-        actorId: actor.id,
-        action: "incident.updated",
-        entityType: "incident",
-        entityId: existing.id,
-        metadata: {
-          fromStatus: existing.status,
-          toStatus: input.status,
-          fromSeverity: existing.severity,
-          toSeverity: input.severity,
-          assignmentChanged,
-          reporterVisibleUpdate: input.visibleToReporter && hasNote,
-        },
-        createdAt: now,
-      })
-      .run();
+    await transaction.insert(auditLogs).values({
+      id: createId(),
+      actorId: actor.id,
+      action: "incident.updated",
+      entityType: "incident",
+      entityId: existing.id,
+      metadata: {
+        fromStatus: existing.status,
+        toStatus: input.status,
+        fromSeverity: existing.severity,
+        toSeverity: input.severity,
+        assignmentChanged,
+        reporterVisibleUpdate: input.visibleToReporter && hasNote,
+      },
+      createdAt: now,
+    });
 
     return { success: true, referenceCode: existing.referenceCode };
   });
