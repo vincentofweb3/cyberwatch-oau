@@ -61,10 +61,18 @@ export async function createTestDatabase(
         },
         close,
       };
-    } catch {
+    } catch (error) {
       await close();
+      const code =
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        typeof error.code === "string" &&
+        /^[A-Z0-9_]{1,40}$/.test(error.code)
+          ? error.code
+          : "unavailable";
       throw new Error(
-        "Could not prepare the isolated PostgreSQL test schema. Check the direct test connection.",
+        `Could not prepare the isolated PostgreSQL test schema (${code}). Check the direct test connection.`,
       );
     }
   }

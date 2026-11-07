@@ -18,7 +18,12 @@ export async function loginAction(
   formData: FormData,
 ): Promise<LoginState> {
   const fingerprint = await getRequestFingerprint("responder-login");
-  const rateLimit = takeRateLimit(fingerprint, 10, 15 * 60 * 1000);
+  let rateLimit;
+  try {
+    rateLimit = await takeRateLimit(fingerprint, 10, 15 * 60 * 1000);
+  } catch {
+    return { success: false, message: "Sign-in is temporarily unavailable. Try again shortly." };
+  }
 
   if (!rateLimit.allowed) {
     return {

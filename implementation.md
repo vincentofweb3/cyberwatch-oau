@@ -1,6 +1,6 @@
 # CyberWatch OAU Implementation Plan
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 This file is the execution ledger. Any future agent should update the checkboxes, the decision log, and `HANDOFF.md` before ending work.
 
@@ -81,7 +81,21 @@ This file is the execution ledger. Any future agent should update the checkboxes
 - [x] Complete all 10 desktop/mobile browser checks against an isolated PostgreSQL schema and remove its server and schema afterwards.
 - [x] Commit and push the verified PostgreSQL migration.
 
+## Resend report notifications
+
+- [x] Confirm the receiving Gmail matches the Resend account and configure its test sender.
+- [x] Add an atomic notification queue, immutable minimized messages, provider acceptance records, leased workers, and bounded retries with idempotency.
+- [x] Add analyst delivery status, an authorized pending-email control, a protected dispatch endpoint, and local worker commands.
+- [x] Replace process-memory request limits with shared PostgreSQL limits and apply the additive migration.
+- [x] Test queue rollback, privacy, concurrent claims, retry timing, error handling, authorization, and shared request limits.
+- [x] Submit one labelled fictional report through the real browser workflow and verify Resend acceptance on the first attempt.
+- [x] Confirm with the user that the notification reached the Gmail Inbox.
+- [x] Document custom sender-domain verification, delivery status limitations, and deployment scheduling.
+- [x] Finish final verification and publish the Resend checkpoint to GitHub.
+
 ## Verification record
+
+On 2026-11-08, the Resend integration passed 32 local tests, 19 live PostgreSQL tests, all 12 desktop/mobile browser checks, lint, formatting, TypeScript, and the production build. The user confirmed that the fictional report notification arrived in the Gmail Inbox. Final checks used the corrected Neon connection timeout, with test servers and temporary schemas cleaned up. Real credentials and the user's screenshot were excluded from publication.
 
 On 2026-11-07, prepared the tested application checkpoint for the user's GitHub repository and documented the Neon, Resend, and Vercel setup sequence in `docs/deployment-setup.md`. Local secrets, database files, and test artifacts were checked for Git exclusion. That checkpoint preceded the PostgreSQL work below; email delivery remains a later phase.
 
@@ -121,3 +135,7 @@ The MVP is done when a user can submit and privately track a report; an authoriz
 | 2026-11-06 | Keep quiz results transient and explain this clearly                       | The current quiz is private practice; persistent analytics need an explicit product decision                          |
 | 2026-11-07 | Use pooled PostgreSQL runtime connections and direct migration connections | Supports Vercel without local runtime database files and keeps transactional migrations separate                      |
 | 2026-11-07 | Import legacy data in one verified transaction after a consistent backup   | Preserves logins, tracking keys, history, and timestamps without overwriting newer hosted data                        |
+| 2026-11-08 | Use Resend's test sender for the confirmed account inbox                   | Enables the requested Gmail notifications before a custom domain is available                                         |
+| 2026-11-08 | Persist minimized email jobs and bounded idempotent retries                | Keeps email failures separate from report saving and avoids blind duplicate sends                                     |
+| 2026-11-08 | Coordinate request limits in PostgreSQL                                    | Preserves abuse limits across restarts and multiple server instances                                                  |
+| 2026-11-08 | Allow two seconds per connection address when using Neon                   | Resolves premature Node address-selection timeouts on higher-latency networks while retaining verified TLS            |

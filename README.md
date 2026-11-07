@@ -27,7 +27,7 @@ See [architecture.md](./architecture.md), [RESEARCH.md](./RESEARCH.md), and [doc
 
 For a plain-language explanation of report storage, the unsaved practice quiz, and how to use the analyst workspace, see [Reports, quizzes, and the analyst workspace](./docs/data-and-analyst-guide.md).
 
-The next deployment phase is described in [GitHub, Neon, Resend, and Vercel setup](./docs/deployment-setup.md). PostgreSQL is implemented. Resend notifications and the Vercel deployment remain the next phase.
+PostgreSQL and Resend report notifications are implemented. See [email setup, retries, and domain verification](./docs/email-delivery.md). Vercel deployment is the next phase, described in [deployment setup](./docs/deployment-setup.md).
 
 ## Local setup
 
@@ -95,7 +95,7 @@ pnpm test:e2e
 
 ## Production constraints
 
-The app uses hosted PostgreSQL and no longer writes a local database at runtime. Before a shared deployment, configure strong account credentials and a session secret. An institutional deployment also requires written ownership and policy decisions, OAU SSO with MFA, distributed rate limiting, centralized monitoring, tested backups, approved retention rules, and private malware-scanned evidence storage. Public binary uploads remain excluded until those controls exist.
+The app uses hosted PostgreSQL and no longer writes a local database at runtime. Before a shared deployment, configure strong account credentials, a session secret, the correct application origin, and scheduled notification retries. Rate limits coordinate through PostgreSQL; the host must supply trustworthy client-IP headers. An institutional deployment also requires written ownership and policy decisions, OAU SSO with MFA, centralized monitoring, tested backups, approved retention rules, and private malware-scanned evidence storage. Public binary uploads remain excluded until those controls exist.
 
 Do not remove the non-official disclaimer or present this repository as connected to OAU systems without written authorization.
 

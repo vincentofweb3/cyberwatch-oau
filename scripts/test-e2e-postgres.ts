@@ -66,6 +66,9 @@ async function main() {
       APP_ORIGIN: origin,
       SESSION_SECRET: randomBytes(48).toString("hex"),
       PLAYWRIGHT_BASE_URL: origin,
+      REPORT_NOTIFICATIONS_ENABLED: "false",
+      RESEND_API_KEY: "",
+      CRON_SECRET: randomBytes(32).toString("hex"),
     };
     server = spawn(
       process.execPath,

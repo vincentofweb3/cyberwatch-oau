@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, count, desc, eq, isNull, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLogs, incidentEvents, incidents, users } from "@/db/schema";
+import { auditLogs, incidentEvents, incidents, reportNotifications, users } from "@/db/schema";
 import {
   isValidStatusTransition,
   severityFromImpact,
@@ -101,6 +101,7 @@ export async function createPublicIncident(input: ReportIncidentInput): Promise<
       visibleToReporter: true,
       createdAt: now,
     });
+    await transaction.insert(reportNotifications).values({ id: createId(), incidentId: id });
   });
 
   return {

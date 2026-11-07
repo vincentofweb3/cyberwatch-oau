@@ -11,6 +11,8 @@ The website uses PostgreSQL hosted on Neon, accessed on the server through Drizz
 | Responder accounts      | `users`                                | Name, email, role, active status, and hashed password                                        |
 | Community advisories    | `alerts`                               | Draft and published guidance                                                                 |
 | Privileged changes      | `audit_logs`                           | Who changed an incident or created an advisory, and when                                     |
+| Email notifications     | `report_notifications`                 | One delivery job per new report, attempts, minimized message, and provider acceptance        |
+| Request limits          | `rate_limits`                          | Shared request counts keyed by a salted hash; no raw IP addresses                            |
 | Quiz answers and scores | Temporary React state in the open page | Immediate practice feedback only; no database table or saved result                          |
 
 The quiz resets when the page is left or reloaded. There is currently no quiz history, certificate, leaderboard, or analyst view of scores. If persistent results are added later, the product must distinguish anonymous aggregate results from results tied to a student account and explain that choice to participants.
@@ -19,8 +21,8 @@ The quiz resets when the page is left or reloaded. There is currently no quiz hi
 
 1. The report form sends its fields to a Next.js Server Action. The server rate-limits requests and validates the fields with Zod.
 2. The server generates a report reference and a private tracking key. It chooses an initial severity from the reported impact and gives the incident a `NEW` status.
-3. A database transaction saves the report and its first timeline entry together. Anonymous reports discard contact fields.
-4. The browser receives a receipt, safety guidance, the reference, and the tracking key. Only a SHA-256 hash of the key is saved, so the original key cannot be recovered later.
+3. A database transaction saves the report, its first timeline entry, and a pending email notification together. Anonymous reports discard contact fields.
+4. The browser receives a receipt, safety guidance, the reference, and the tracking key. Only a SHA-256 hash of the key is saved, so the original key cannot be recovered later. The server then attempts a minimized email notification; email failure does not undo the report.
 5. Tracking checks both credentials and returns limited report information and only deliberately shared timeline entries. It excludes the full narrative, contact details, internal notes, and responder identities.
 6. An authenticated analyst can update the report. The server checks access and permitted status transitions, then saves the changes, timeline entries, and audit record together.
 
@@ -39,7 +41,7 @@ The analyst account displays **Victor Ibiloju**. The name comes from the account
 
 A typical lifecycle is **New → Triaged → Investigating → Contained → Resolved → Closed**. Available transitions depend on the current state. Some reports can be resolved without a separate containment step; reports that cannot be acted on can be marked **Not actionable** where permitted. Resolved or closed incidents can be reopened for investigation.
 
-This is a human response workspace. It does not automatically investigate links, scan devices, block attackers, recover accounts, or send notifications. Those actions require the relevant service provider, technical responder, or a future integration.
+This is a human response workspace. New reports can send a minimized email notification to the configured analyst inbox through Resend; each incident page shows its delivery status. It does not automatically investigate links, scan devices, block attackers, or recover accounts. Those actions require the relevant service provider or technical responder. See [email delivery](./email-delivery.md) for sender setup and retry handling.
 
 ## Useful next additions
 

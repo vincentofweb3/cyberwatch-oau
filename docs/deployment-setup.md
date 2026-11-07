@@ -1,6 +1,6 @@
 # GitHub, Neon, Resend, and Vercel setup
 
-The PostgreSQL migration is implemented and the existing SQLite records have been imported into Neon. Email delivery and Vercel deployment remain the next phase.
+The PostgreSQL migration and Resend report notifications are implemented. Existing SQLite records have been preserved in Neon. Vercel deployment remains the next phase.
 
 Repository: <https://github.com/vincentofweb3/cyberwatch-oau>
 
@@ -35,7 +35,7 @@ The completed import preserved 2 accounts, 4 reports, 6 timeline entries, and 2 
 
 Reference: <https://neon.com/docs/get-started-with-neon/connect-neon>
 
-## 3. Prepare Resend
+## 3. Configure Resend
 
 A separate project key is recommended, although an existing suitably scoped key can work.
 
@@ -47,9 +47,9 @@ A separate project key is recommended, although an existing suitably scoped key 
 
 For initial tests, the `resend.dev` sender can send only to the email address associated with the Resend account. Verify that the receiving Gmail matches that account before relying on the test sender. Sending to other recipients requires a verified domain you control.
 
-Planned delivery behaviour: save the report and a pending notification record together, send a notification containing the reference/category/severity/time and a link to the protected report, then record the delivery result. Retry failed notifications without creating another incident. Do not email the private tracking key, internal notes, or the full report narrative.
+Implemented delivery behaviour: save the report and a pending notification record together, send a notification containing the reference/category/severity/time and a link to the protected report, then record whether Resend accepted it. Transient failures can retry without creating another incident. The private tracking key, contact details, internal notes, and full report narrative are excluded.
 
-This checkpoint does not send email; providing the key prepares the later integration.
+The account owner confirmed that the receiving Gmail is the Resend account email, so the test sender can be used now. Set `REPORT_NOTIFICATIONS_ENABLED=true` and `REPORT_NOTIFICATION_FROM="CyberWatch OAU <onboarding@resend.dev>"`. See [email delivery](./email-delivery.md) for local workers, deployment scheduling, delivery status, and exact steps to verify a custom domain. Ordinary automated tests explicitly disable real delivery.
 
 References:
 
@@ -60,7 +60,7 @@ References:
 
 Import the GitHub repository into Vercel, select the intended function region, and configure the hosted database connection, session secret, application origin, email sender/recipient, and Resend key in Vercel's environment settings. Match environment names to the completed integration.
 
-Use a separate database/branch for previews, so preview tests cannot change deployed reports. Replace process-memory anti-spam limits with a shared service before making public email notifications available. Never rely on a local SQLite file for durable Vercel storage.
+Use a separate database/branch for previews, so preview tests cannot change deployed reports, and leave email disabled unless deliberately testing delivery. PostgreSQL now provides shared anti-spam limits. Configure a scheduler and `CRON_SECRET` for retry dispatch, and verify that client-IP headers come from the hosting platform. Never rely on a local SQLite file for durable Vercel storage.
 
 Verify a preview with fictional data: submit a report, confirm it persists in Neon and appears in the analyst workspace, check private tracking, and confirm the notification reaches Gmail. Exercise delivery failure and retry handling before releasing the deployment.
 

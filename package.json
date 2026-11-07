@@ -19,6 +19,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "node --import tsx scripts/test-e2e-postgres.ts",
     "test:smoke": "node scripts/smoke-production.mjs",
+    "notifications:retry": "node --import tsx scripts/notifications.ts",
+    "notifications:work": "node --import tsx scripts/notifications.ts --watch",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "node --import tsx scripts/migrate.ts",

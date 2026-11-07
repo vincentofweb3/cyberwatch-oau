@@ -79,6 +79,8 @@ test("a submitted report persists and exposes only the analyst's shared update",
   await page.goto(`/dashboard/incidents?query=${reference}`);
   await page.getByRole("link").filter({ hasText: title, visible: true }).first().click();
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Report email notification" })).toBeVisible();
+  await expect(page.getByText("Queued for email", { exact: true })).toBeVisible();
   await page.getByLabel("Status", { exact: true }).selectOption("TRIAGED");
   await page.getByLabel("Severity", { exact: true }).selectOption("HIGH");
   await page.getByLabel("Assignment").selectOption("SELF");
@@ -103,4 +105,15 @@ test("a submitted report persists and exposes only the analyst's shared update",
     page.getByText("We have reviewed this fictional report. Do not reply to the sender."),
   ).toBeVisible();
   await expect(page.getByText("Fictional internal investigation note.")).toHaveCount(0);
+});
+
+test("email dispatch rejects unauthenticated requests", async ({ request }) => {
+  expect((await request.get("/api/notifications/dispatch")).status()).toBe(401);
+  expect(
+    (
+      await request.post("/api/notifications/dispatch", {
+        headers: { Authorization: "Bearer invalid" },
+      })
+    ).status(),
+  ).toBe(401);
 });

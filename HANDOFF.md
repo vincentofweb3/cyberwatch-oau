@@ -38,7 +38,21 @@ The user-review corrections are also complete:
 - Local tests use PGlite; `pnpm test:postgres` runs the same database/import tests in isolated Neon schemas. `pnpm test:e2e` creates its own schema and production server, then cleans both up. Run `pnpm build` first.
 - Passed: lint, typecheck, 21 local tests, 11 live PostgreSQL/import tests, production build, and all 10 desktop/mobile browser tests. The browser suite verified submission, analyst assignment and status changes, reload persistence, private notes, and shared tracking updates; its server and isolated schema were removed afterwards.
 - Formatting and the final credential-exclusion scan passed. The empty schema left by an earlier interrupted test was verified and removed without touching application tables.
-- Resend notifications and Vercel deployment remain unimplemented. The user's email configuration is already in the ignored environment file; preserve it for the next phase. Imported demo account passwords still need replacement before a shared deployment.
+- Resend was still pending at this checkpoint; see the completed email implementation below. Imported demo account passwords still need replacement before a shared deployment.
+
+## Resend report notifications — 2026-11-08
+
+- New reports now save one notification job in the same transaction as the report and initial timeline event. Next.js `after` attempts delivery after returning the receipt. Older imported reports are not emailed retroactively.
+- Native server-side fetch calls Resend with a timeout and a stable idempotency key. The immutable message includes only reference, category, severity, timestamp, and a protected dashboard link. API keys, tracking keys, report titles/narratives, contact details, and internal notes are excluded.
+- Workers claim jobs with row locks, recover expired claims, persist outcomes, and retry transient errors with backoff. Uncertain jobs stop at six attempts or 23 hours; permanent rejections require investigation. Accepted status does not claim inbox delivery.
+- `pnpm notifications:work` runs the local worker; `pnpm notifications:retry` processes one batch. The protected GET/POST dispatch route supports future scheduling. No Vercel deployment or scheduler is active yet.
+- Incident pages show delivery status and an authorized control for processing pending mail. Ordinary unit/browser tests explicitly disable real delivery.
+- `rate_limits` now coordinates reporting, tracking, and login limits in PostgreSQL. The two-table migration has been applied to Neon. Fingerprints hash scope and client IP without retaining raw IPs; hosts must provide trustworthy forwarding headers.
+- Higher-latency connections exposed Node's default 250ms address-selection timeout. Neon connections now raise the process-wide minimum to two seconds, preserve any longer host setting, and retain the ten-second overall connection limit and TLS certificate verification.
+- `.env.local` enables the Resend test sender for the confirmed account email. A scheduler secret was generated; previous configuration is in the ignored `.env.local.before-resend`. Keep all of these private.
+- A real browser submission created the clearly fictional report `CW-2026-T65W2EJ`. Resend accepted its notification on attempt one, and the user confirmed **Received in Inbox**. The analyst status was visually checked on desktop/mobile. The report is retained for the user to inspect. The Sending-access key cannot query message delivery events; this live test's inbox confirmation came directly from the user.
+- Final verification passed: 32 local tests, 19 live PostgreSQL tests, all 12 desktop/mobile browser checks, lint, formatting, TypeScript, and the production build. The final browser server and isolated schema were removed. The credential-exclusion scan passed; the user's original screenshot remains local and untracked.
+- [Email delivery and domain setup](./docs/email-delivery.md) explains the test sender, custom DNS verification, worker operation, and delivery limits. Incoming replies and messages to reporters are separate future features.
 
 ## Earlier SQLite checkpoint
 
@@ -92,12 +106,12 @@ These credentials and sample incidents are development-only. The analyst display
 
 ## Recommended next work
 
-The user has selected <https://github.com/vincentofweb3/cyberwatch-oau> for publication and requested Gmail notifications through their existing Resend account, followed by Vercel deployment. The immediate sequence is the GitHub checkpoint, Neon/PostgreSQL migration, Resend delivery with persisted retries, then a verified Vercel preview. See [deployment setup](./docs/deployment-setup.md) for the account-owner steps and implementation scope. The PostgreSQL migration is complete and the local runtime settings have been switched. Next implement persisted Resend notifications, then validate a Vercel preview. The notification recipient is private configuration and should not be committed.
+The user selected <https://github.com/vincentofweb3/cyberwatch-oau> for publication. PostgreSQL and Resend report notifications are implemented. Next validate a Vercel preview with a separate database/branch, strong responder credentials, the correct app origin, and scheduled notification retries. See [deployment setup](./docs/deployment-setup.md). The notification recipient is private configuration and should not be committed.
 
 1. Consider a personal assigned queue, follow-up reminders, incident trends, and minimized exports. Decide separately whether quiz analytics should be anonymous or tied to accounts.
 2. Conduct supervised usability testing with students and department responders.
 3. Validate ownership, categories, escalation paths, response targets, and retention with the Computer Centre, CySe Lab, Legal/Data Protection personnel, Corporate Affairs, and campus security.
-4. Before any institutional pilot, replace custom auth and in-memory rate limiting with OAU SSO/MFA and a distributed limiter, and review PostgreSQL roles, backup/restore, and retention.
+4. Before any institutional pilot, replace custom auth with OAU SSO/MFA, review host/WAF limits and trusted IP headers, and review PostgreSQL roles, backup/restore, and retention.
 5. Add private evidence storage only after quarantine, malware scanning, authorization, retention, and safe-download procedures are approved.
 
 ## Resume checklist

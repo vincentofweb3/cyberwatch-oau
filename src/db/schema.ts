@@ -20,6 +20,7 @@ import type {
   TlpLevel,
   UserRole,
 } from "@/lib/domain";
+import type { EmailMessage } from "@/lib/notifications/message";
 
 const createdAtColumn = () =>
   timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow();
@@ -147,6 +148,46 @@ export const auditLogs = pgTable(
   ],
 );
 
+export type NotificationStatus = "PENDING" | "PROCESSING" | "ACCEPTED" | "FAILED" | "NEEDS_REVIEW";
+
+export const reportNotifications = pgTable(
+  "report_notifications",
+  {
+    id: text("id").primaryKey(),
+    incidentId: text("incident_id")
+      .notNull()
+      .references(() => incidents.id, { onDelete: "cascade" }),
+    status: text("status").$type<NotificationStatus>().notNull().default("PENDING"),
+    payload: jsonb("payload").$type<EmailMessage>(),
+    attempts: integer("attempts").notNull().default(0),
+    firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true, precision: 3 }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, precision: 3 })
+      .notNull()
+      .defaultNow(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true, precision: 3 }),
+    lockToken: text("lock_token"),
+    providerMessageId: text("provider_message_id"),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, precision: 3 }),
+    lastError: text("last_error"),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => [
+    uniqueIndex("report_notifications_incident_unique").on(table.incidentId),
+    index("report_notifications_due_idx").on(table.status, table.nextAttemptAt),
+  ],
+);
+
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true, precision: 3 }).notNull(),
+  },
+  (table) => [index("rate_limits_reset_idx").on(table.resetAt)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   assignedIncidents: many(incidents),
   events: many(incidentEvents),
@@ -186,6 +227,8 @@ export const schema = {
   incidentEvents,
   alerts,
   auditLogs,
+  reportNotifications,
+  rateLimits,
   usersRelations,
   incidentsRelations,
   incidentEventsRelations,

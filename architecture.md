@@ -74,6 +74,7 @@ Authorized responder ─────>│ Server Components       │
 - Report creation, analyst updates, and alert creation await their transactions before returning. Concurrent incident updates check the stored version; alert slug conflicts are handled without partial writes.
 - The read-only SQLite importer creates a consistent backup and verifies all five imported tables before committing. An identical repeat is safe, and different target records are never overwritten.
 - Tests use PGlite locally or dedicated temporary PostgreSQL schemas. SQLite is a development dependency for legacy import only.
+- New reports atomically enqueue a `report_notifications` row. Next.js `after` attempts Resend delivery after returning the tracking receipt. A leased worker preserves immutable email payloads and idempotency keys across bounded retries; protected scheduler dispatch handles quiet periods. The `rate_limits` table coordinates public request limits.
 
 ### Authentication and authorization
 
@@ -141,7 +142,7 @@ Rules:
 ## 9. Security boundaries
 
 - Browser input is untrusted.
-- Public report/track actions are rate-limited through an adapter; the local adapter is process-memory only.
+- Public report/track actions and sign-in share PostgreSQL rate limits across server instances, using hashed request scope and client IP. Hosting must provide trustworthy IP headers.
 - The database and session secret are server-only.
 - Reporter tracking keys are shown once and stored only as SHA-256 hashes.
 - Incident descriptions are never included in audit metadata.

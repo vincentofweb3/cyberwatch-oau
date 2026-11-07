@@ -22,7 +22,8 @@ Include:
 - Production secrets must come from a secret manager.
 - Seed credentials are development-only.
 - Runtime storage is PostgreSQL; keep pooled and direct connection URLs server-side. Neon TLS certificates are verified. SQLite is used only by the explicit legacy importer and tests.
-- A public deployment must add distributed rate limiting, monitoring, backups, data retention, OAU identity integration, and private scanned evidence storage.
+- PostgreSQL coordinates rate limits across instances; public hosting must supply trustworthy client-IP headers. A public deployment still needs monitoring, backups, retention, suitable identity integration, and private scanned evidence storage where uploads are introduced.
+- Resend keys and scheduler secrets stay server-side. Email contains minimized report metadata, never tracking keys, narratives, contact details, or internal notes. Accepted email is not proof of delivery; review Resend for bounces and suppression. See `docs/email-delivery.md`.
 
 ## Supported versions
 

@@ -1,9 +1,11 @@
 "use server";
 
+import { after } from "next/server";
 import { createPublicIncident, trackPublicIncident, type ReportReceipt } from "@/lib/dal/incidents";
 import { takeRateLimit } from "@/lib/rate-limit";
 import { getRequestFingerprint } from "@/lib/request-context";
 import { reportIncidentSchema, trackIncidentSchema } from "@/lib/validators";
+import { dispatchAfterReport } from "@/lib/notifications/server";
 
 export type ReportFormState = {
   success: boolean;
@@ -17,13 +19,21 @@ export async function submitIncidentAction(
   formData: FormData,
 ): Promise<ReportFormState> {
   const fingerprint = await getRequestFingerprint("public-report");
-  const rateLimit = takeRateLimit(fingerprint, 5, 15 * 60 * 1000);
+  let rateLimit;
+  try {
+    rateLimit = await takeRateLimit(fingerprint, 5, 15 * 60 * 1000);
+  } catch {
+    return {
+      success: false,
+      message: "Reporting is temporarily unavailable. Keep your details and try again shortly.",
+    };
+  }
 
   if (!rateLimit.allowed) {
     return {
       success: false,
       message:
-        "Too many reports were submitted from this device. Wait a few minutes and try again.",
+        "Too many reports were submitted from this network. Wait a few minutes and try again.",
     };
   }
 
@@ -39,6 +49,7 @@ export async function submitIncidentAction(
 
   try {
     const receipt = await createPublicIncident(parsed.data);
+    after(() => dispatchAfterReport(receipt.referenceCode));
     return {
       success: true,
       message: "Your report was received.",
@@ -64,7 +75,12 @@ export async function trackIncidentAction(
   formData: FormData,
 ): Promise<TrackFormState> {
   const fingerprint = await getRequestFingerprint("public-track");
-  const rateLimit = takeRateLimit(fingerprint, 20, 15 * 60 * 1000);
+  let rateLimit;
+  try {
+    rateLimit = await takeRateLimit(fingerprint, 20, 15 * 60 * 1000);
+  } catch {
+    return { success: false, message: "Tracking is temporarily unavailable. Try again shortly." };
+  }
 
   if (!rateLimit.allowed) {
     return {

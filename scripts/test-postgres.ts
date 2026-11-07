@@ -4,7 +4,14 @@ import { getMigrationUrl } from "../src/db/config";
 
 const child = spawn(
   "pnpm",
-  ["exec", "vitest", "run", "tests/incidents.integration.test.ts", "tests/sqlite-import.test.ts"],
+  [
+    "exec",
+    "vitest",
+    "run",
+    "tests/incidents.integration.test.ts",
+    "tests/sqlite-import.test.ts",
+    "tests/notifications.integration.test.ts",
+  ],
   {
     stdio: "inherit",
     env: { ...process.env, CYBERWATCH_TEST_DATABASE_URL: getMigrationUrl() },

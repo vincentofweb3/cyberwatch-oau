@@ -13,6 +13,8 @@ import {
   UserRound,
 } from "lucide-react";
 import { IncidentUpdateForm } from "@/components/incident-update-form";
+import { NotificationDelivery } from "@/components/notification-delivery";
+import { getReportNotification } from "@/lib/dal/notifications";
 import { SeverityBadge, StatusBadge, TlpBadge } from "@/components/status-badge";
 import { INCIDENT_CATEGORY_LABELS, INCIDENT_CHANNEL_LABELS, STATUS_LABELS } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
@@ -26,7 +28,11 @@ export const metadata: Metadata = {
 
 export default async function IncidentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [responder, incident] = await Promise.all([requireResponder(), getIncidentDetail(id)]);
+  const [responder, incident, delivery] = await Promise.all([
+    requireResponder(),
+    getIncidentDetail(id),
+    getReportNotification(id),
+  ]);
   if (!incident) notFound();
 
   return (
@@ -151,6 +157,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
         </div>
 
         <aside className="grid gap-6 xl:sticky xl:top-8">
+          <NotificationDelivery incidentId={incident.id} delivery={delivery} />
           <IncidentUpdateForm
             incidentId={incident.id}
             status={incident.status}

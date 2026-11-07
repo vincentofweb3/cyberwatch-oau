@@ -40,7 +40,9 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  await database.query("TRUNCATE audit_logs, incident_events, alerts, incidents");
+  await database.query(
+    "TRUNCATE report_notifications, rate_limits, audit_logs, incident_events, alerts, incidents",
+  );
   await database.query("UPDATE users SET is_active = true");
 });
 

@@ -32,6 +32,8 @@ These are the flows in the current automated smoke suite. Report creation and mu
 
 ## Required checks
 
+All checks below, the live PostgreSQL suite, and all desktop/mobile browser cases passed on 2026-11-08 after the Resend integration. Formatting also passed.
+
 ```bash
 pnpm lint
 pnpm typecheck
@@ -39,7 +41,11 @@ pnpm test
 pnpm build
 ```
 
-The PostgreSQL migration passes 21 local tests across 5 files, all 11 live Neon database/import cases, and all 10 desktop/mobile browser tests. These cover atomic rollback, authentication, private DTOs/notes, case-insensitive searches, concurrent advisory creation, lossless/repeated/conflicting SQLite imports, and the complete submission-to-tracking workflow. Live tests use dedicated temporary schemas and clean them up afterwards.
+The suite now contains 32 local tests across 7 files, 19 live Neon database/import/notification cases, and 12 desktop/mobile browser cases. These cover atomic rollback, authentication, private DTOs/notes, case-insensitive searches, concurrent advisory creation, lossless/repeated/conflicting SQLite imports, notification claims and retries, shared rate limits, and the complete submission-to-tracking workflow. Live tests use dedicated temporary schemas and clean them up afterwards.
+
+Ordinary tests use a fake email transport and explicitly disable real Resend delivery. The separate live delivery check submitted one labelled fictional report (`CW-2026-T65W2EJ`), verified provider acceptance on attempt one and the analyst status on desktop/mobile, and the user confirmed that its notification reached the Gmail Inbox. That test report remains available for review. No private tracking key or API credential was logged.
+
+Neon verification exposed Node's default 250ms connection-address timeout on the workstation's higher-latency network. The connection factory now allows two seconds per address, retaining the overall ten-second pool connection limit and certificate verification. Retry tests anchor their simulated clock to the job's saved schedule so network latency cannot make an eligible test job appear premature.
 
 The default unit/integration suite uses an in-memory PostgreSQL engine (PGlite) and needs no external credentials. For the live database suite, configure the direct connection in `.env.local`, then run:
 

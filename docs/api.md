@@ -70,3 +70,9 @@ If the database query fails, it returns HTTP 503 with:
 ```
 
 Both responses use `Cache-Control: no-store`. The endpoint does not return environment settings, connection details, dependency versions, account counts, or secrets.
+
+### `GET` / `POST /api/notifications/dispatch`
+
+Requires the full `Authorization: Bearer <CRON_SECRET>` header, with a configured secret of at least 32 characters. Missing or incorrect authorization returns 401. An authorized request processes up to three due notification jobs and returns aggregate accepted/retrying/failed/review counts, or `{ "disabled": true }` when email is disabled. Configuration/database failures return a generic 503. Every response is uncached; email contents and credentials are never returned.
+
+The protected `retryNotificationAction` validates the incident ID and requires an active analyst/admin before processing a due notification for that report. It does not bypass retry delays or resend accepted messages.

@@ -1,5 +1,9 @@
 import { Pool, type PoolConfig } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
+import {
+  getDefaultAutoSelectFamilyAttemptTimeout,
+  setDefaultAutoSelectFamilyAttemptTimeout,
+} from "node:net";
 import { validatePostgresUrl } from "./config";
 import { schema } from "./schema";
 
@@ -9,7 +13,15 @@ export function createDatabaseConnection(
 ) {
   const url = new URL(validatePostgresUrl(connectionString));
   // Verify the remote certificate as well as encrypting the connection.
-  if (url.hostname.endsWith(".neon.tech")) url.searchParams.set("sslmode", "verify-full");
+  if (url.hostname.endsWith(".neon.tech")) {
+    url.searchParams.set("sslmode", "verify-full");
+    // Node's 250ms address-selection timeout can abandon reachable IPv4 addresses
+    // on slower networks before falling back to unavailable IPv6. Keep the overall
+    // pool timeout below, but give each address time to connect. This Node setting
+    // applies process-wide; preserve a longer value configured by the host.
+    if (getDefaultAutoSelectFamilyAttemptTimeout() < 2000)
+      setDefaultAutoSelectFamilyAttemptTimeout(2000);
+  }
 
   const pool = new Pool({
     connectionString: url.toString(),

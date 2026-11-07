@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Clock3, LockKeyhole, ShieldAlert } from "lucide-react";
 import { ReportForm } from "@/components/report-form";
 
+export const maxDuration = 60;
+
 export const metadata: Metadata = {
   title: "Report a cyber incident",
   description:

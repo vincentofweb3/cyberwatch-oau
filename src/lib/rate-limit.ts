@@ -1,32 +1,25 @@
-type RateLimitRecord = {
-  count: number;
-  resetAt: number;
-};
+import "server-only";
+import { sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import { rateLimits } from "@/db/schema";
 
-const globalRateLimit = globalThis as unknown as {
-  cyberwatchRateLimits?: Map<string, RateLimitRecord>;
-};
-
-const records = globalRateLimit.cyberwatchRateLimits ?? new Map<string, RateLimitRecord>();
-
-if (process.env.NODE_ENV !== "production") {
-  globalRateLimit.cyberwatchRateLimits = records;
-}
-
-export function takeRateLimit(key: string, limit: number, windowMs: number) {
-  const now = Date.now();
-  const existing = records.get(key);
-
-  if (!existing || existing.resetAt <= now) {
-    records.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1, resetAt: now + windowMs };
-  }
-
-  if (existing.count >= limit) {
-    return { allowed: false, remaining: 0, resetAt: existing.resetAt };
-  }
-
-  existing.count += 1;
-  records.set(key, existing);
-  return { allowed: true, remaining: limit - existing.count, resetAt: existing.resetAt };
+export async function takeRateLimit(key: string, limit: number, windowMs: number) {
+  const now = new Date();
+  const resetAt = new Date(now.getTime() + windowMs);
+  const [record] = await db
+    .insert(rateLimits)
+    .values({ key, count: 1, resetAt })
+    .onConflictDoUpdate({
+      target: rateLimits.key,
+      set: {
+        count: sql`case when ${rateLimits.resetAt} <= ${now} then 1 else least(${rateLimits.count} + 1, ${limit + 1}) end`,
+        resetAt: sql`case when ${rateLimits.resetAt} <= ${now} then ${resetAt} else ${rateLimits.resetAt} end`,
+      },
+    })
+    .returning();
+  return {
+    allowed: record.count <= limit,
+    remaining: Math.max(0, limit - record.count),
+    resetAt: record.resetAt.getTime(),
+  };
 }

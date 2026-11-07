@@ -18,7 +18,7 @@ Method: lightweight STRIDE analysis with privacy and abuse cases.
 1. Public browser to Next.js application
 2. Authenticated responder browser to Next.js application
 3. Server application to database
-4. Server application to future email, SSO, object storage, and monitoring providers
+4. Server application to Resend, and future SSO, object storage, and monitoring providers
 5. Administrator/deployer access to runtime secrets and backups
 
 ## Threats and controls
@@ -29,7 +29,7 @@ Method: lightweight STRIDE analysis with privacy and abuse cases.
 | Tampering              | User changes incident ID or status payload | server-side Zod validation, DAL authorization, legal transitions   | signed webhooks, database RLS where appropriate          |
 | Repudiation            | Responder denies changing an incident      | append-only incident event and audit log                           | centralized immutable audit sink                         |
 | Information disclosure | IDOR exposes another report                | reference + secret key, hash comparison, DTO minimization          | penetration tests, external review                       |
-| Denial of service      | Automated report spam                      | honeypot and process-memory rate limiter                           | Redis/WAF rate limiting, CAPTCHA only if necessary       |
+| Denial of service      | Automated report spam                      | honeypot and shared PostgreSQL rate limiter                        | WAF controls and CAPTCHA only if necessary               |
 | Elevation of privilege | Analyst calls admin mutation               | required-role checks inside action/DAL                             | policy engine and formal access reviews                  |
 | Stored XSS             | Malicious report contains script           | React escaping, no raw HTML, CSP                                   | sanitizer if rich text is introduced                     |
 | SQL injection          | Query text alters SQL                      | Drizzle parameterization, strict schemas                           | database monitoring and least-privileged DB user         |
@@ -59,7 +59,7 @@ Controls include minimal public response detail, high-entropy references, generi
 
 ## Residual risks
 
-- Process-memory rate limits reset and do not coordinate across instances.
+- PostgreSQL rate limits coordinate across instances; forged or incorrectly trusted forwarding headers and distributed spam still require host/WAF controls.
 - Custom prototype authentication lacks MFA and enterprise identity lifecycle controls.
 - Hosted PostgreSQL removes reliance on local runtime files; database-role restrictions, backup/restore settings, and retention still need deployment review.
 - Administrators with host/database access can read incident content.

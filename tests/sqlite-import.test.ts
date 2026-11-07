@@ -113,7 +113,9 @@ beforeAll(async () => {
   database = await createTestDatabase();
 }, 60_000);
 beforeEach(async () => {
-  await database.query("TRUNCATE audit_logs, incident_events, alerts, incidents, users");
+  await database.query(
+    "TRUNCATE report_notifications, audit_logs, incident_events, alerts, incidents, users",
+  );
 });
 afterAll(async () => {
   await database?.close();

@@ -9,6 +9,7 @@ export default defineConfig({
     },
   },
   test: {
+    env: { REPORT_NOTIFICATIONS_ENABLED: "false", RESEND_API_KEY: "" },
     environment: "node",
     include: ["tests/**/*.test.ts"],
     fileParallelism: false,
