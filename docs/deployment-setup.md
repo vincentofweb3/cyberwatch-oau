@@ -1,6 +1,6 @@
 # GitHub, Neon, Resend, and Vercel setup
 
-The PostgreSQL migration and Resend report notifications are implemented. Existing SQLite records have been preserved in Neon. Vercel deployment remains the next phase.
+The PostgreSQL migration, Resend report notifications, and the production Vercel deployment are complete. Existing SQLite records have been preserved in Neon.
 
 Repository: <https://github.com/vincentofweb3/cyberwatch-oau>
 
@@ -56,12 +56,17 @@ References:
 - <https://resend.com/docs/dashboard/api-keys/introduction>
 - <https://resend.com/docs/knowledge-base/403-error-resend-dev-domain>
 
-## 4. Connect Vercel after the database migration
+## 4. Connect Vercel — completed 2026-11-11
 
-Import the GitHub repository into Vercel, select the intended function region, and configure the hosted database connection, session secret, application origin, email sender/recipient, and Resend key in Vercel's environment settings. Match environment names to the completed integration.
+The production deployment is live at <https://cyberwatch-oau.vercel.app> (Vercel project `cyberwatch-oau`, linked through the GitHub repository `vincentofweb3/cyberwatch-oau`).
 
-Use a separate database/branch for previews, so preview tests cannot change deployed reports, and leave email disabled unless deliberately testing delivery. PostgreSQL now provides shared anti-spam limits. Configure a scheduler and `CRON_SECRET` for retry dispatch, and verify that client-IP headers come from the hosting platform. Never rely on a local SQLite file for durable Vercel storage.
+- Deployed with the Vercel CLI (`vercel deploy --prod`) after `pnpm lint`, `pnpm typecheck`, all 32 tests, and the production build passed.
+- Production environment settings (names only): `DATABASE_URL` (Neon pooled URL), `SESSION_SECRET`, `APP_ORIGIN=https://cyberwatch-oau.vercel.app`, `RESEND_API_KEY`, `REPORT_NOTIFICATION_TO`, `REPORT_NOTIFICATION_FROM` (resend.dev test sender), `REPORT_NOTIFICATIONS_ENABLED=true`, and `CRON_SECRET`. `DATABASE_MIGRATION_URL`, `NEON_*`, `DEMO_*`, and `SQLITE_IMPORT_PATH` were deliberately not copied to Vercel.
+- `vercel.json` registers a Hobby-safe daily cron (`0 6 * * *`, 06:00 UTC) for `GET /api/notifications/dispatch`. Vercel Cron sends `Authorization: Bearer $CRON_SECRET` automatically, and the route rejects any other caller (verified: 401 without the secret, `{accepted, retrying, failed, review}` with it).
+- The demo responder passwords in the hosted Neon database were rotated to new strong random values with `pnpm rotate:passwords` (reads `NEW_ADMIN_PASSWORD` / `NEW_ANALYST_PASSWORD`; values are never printed or committed). The previous demo passwords no longer work. New `SESSION_SECRET` was not required; the existing 42-character secret remains in use.
+- Verified after deploy: `/api/health` returns 200 with `status: ok`, and `/`, `/report`, `/login`, and `/track` return 200.
+- `.vercelignore` excludes local databases, env files, evidence storage, browser artifacts, and the owner's untracked screenshot from CLI uploads.
 
-Verify a preview with fictional data: submit a report, confirm it persists in Neon and appears in the analyst workspace, check private tracking, and confirm the notification reaches Gmail. Exercise delivery failure and retry handling before releasing the deployment.
+Preview deployments should still use a separate Neon branch with email disabled, so preview tests cannot change deployed reports or send mail. The resend.dev test sender can only send to the Resend account email; verify a custom domain before inviting other recipients.
 
 Reference: <https://vercel.com/kb/guide/is-sqlite-supported-in-vercel>

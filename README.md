@@ -80,22 +80,23 @@ pnpm test:e2e
 
 ## Main routes
 
-| Route                       | Purpose                                           |
-| --------------------------- | ------------------------------------------------- |
-| `/report`                   | Submit a minimized incident report                |
-| `/track`                    | Track a report with its reference and private key |
-| `/alerts`                   | Read published security advisories                |
-| `/learn`                    | Use awareness guides and the short quiz           |
-| `/login`                    | Sign in as an authorized responder                |
-| `/dashboard`                | View responder priorities and metrics             |
-| `/dashboard/incidents`      | Search and filter the incident queue              |
-| `/dashboard/incidents/[id]` | Triage and update an incident                     |
-| `/dashboard/alerts`         | Draft and publish advisories                      |
-| `/api/health`               | Minimal readiness response                        |
+| Route                         | Purpose                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `/report`                     | Submit a minimized incident report                                             |
+| `/track`                      | Track a report with its reference and private key                              |
+| `/alerts`                     | Read published security advisories                                             |
+| `/learn`                      | Use awareness guides and the short quiz                                        |
+| `/login`                      | Sign in as an authorized responder                                             |
+| `/dashboard`                  | View responder priorities and metrics                                          |
+| `/dashboard/incidents`        | Search and filter the incident queue                                           |
+| `/dashboard/incidents/[id]`   | Triage and update an incident                                                  |
+| `/dashboard/alerts`           | Draft and publish advisories                                                   |
+| `/api/health`                 | Minimal readiness response                                                     |
+| `/api/notifications/dispatch` | Process pending notification retries (Bearer `CRON_SECRET`; Vercel Cron daily) |
 
 ## Production constraints
 
-The app uses hosted PostgreSQL and no longer writes a local database at runtime. Before a shared deployment, configure strong account credentials, a session secret, the correct application origin, and scheduled notification retries. Rate limits coordinate through PostgreSQL; the host must supply trustworthy client-IP headers. An institutional deployment also requires written ownership and policy decisions, OAU SSO with MFA, centralized monitoring, tested backups, approved retention rules, and private malware-scanned evidence storage. Public binary uploads remain excluded until those controls exist.
+The app uses hosted PostgreSQL and no longer writes a local database at runtime. The production deployment runs on Vercel at <https://cyberwatch-oau.vercel.app> (see [deployment setup](./docs/deployment-setup.md)); a daily Vercel Cron (`0 6 * * *`) dispatches pending notification retries. Before any wider shared deployment, configure strong account credentials (`pnpm rotate:passwords`), a session secret, the correct application origin, and a verified sender domain. Rate limits coordinate through PostgreSQL; the host must supply trustworthy client-IP headers. An institutional deployment also requires written ownership and policy decisions, OAU SSO with MFA, centralized monitoring, tested backups, approved retention rules, and private malware-scanned evidence storage. Public binary uploads remain excluded until those controls exist.
 
 Do not remove the non-official disclaimer or present this repository as connected to OAU systems without written authorization.
 

@@ -17,6 +17,7 @@ The MVP is implementation-complete:
 - Drizzle migration, deterministic seed, health route, security headers, and rate-limit adapters;
 - unit, PostgreSQL/import integration, production smoke, and Playwright test suites;
 - research, architecture, product, security, API, testing, and continuation documentation.
+- production deployment on Vercel at <https://cyberwatch-oau.vercel.app>, backed by the hosted Neon database and the Resend test sender (2026-11-11).
 
 The user-review corrections are also complete:
 
@@ -39,6 +40,16 @@ The user-review corrections are also complete:
 - Passed: lint, typecheck, 21 local tests, 11 live PostgreSQL/import tests, production build, and all 10 desktop/mobile browser tests. The browser suite verified submission, analyst assignment and status changes, reload persistence, private notes, and shared tracking updates; its server and isolated schema were removed afterwards.
 - Formatting and the final credential-exclusion scan passed. The empty schema left by an earlier interrupted test was verified and removed without touching application tables.
 - Resend was still pending at this checkpoint; see the completed email implementation below. Imported demo account passwords still need replacement before a shared deployment.
+
+## Vercel production deployment — 2026-11-11
+
+- Production is live at <https://cyberwatch-oau.vercel.app> (project `cyberwatch-oau`, linked to GitHub `vincentofweb3/cyberwatch-oau`). Deployed with the Vercel CLI by the account owner connection; no deployment protection is enabled, so public pages are reachable.
+- Production env settings: `DATABASE_URL` (pooled Neon), `SESSION_SECRET`, `APP_ORIGIN=https://cyberwatch-oau.vercel.app`, `RESEND_API_KEY`, `REPORT_NOTIFICATION_TO`, `REPORT_NOTIFICATION_FROM` (`resend.dev` test sender), `REPORT_NOTIFICATIONS_ENABLED=true`, `CRON_SECRET`. Migration/direct URL, `NEON_*`, `DEMO_*`, and `SQLITE_IMPORT_PATH` were not copied to Vercel.
+- `vercel.json` registers a Hobby-safe daily cron (`0 6 * * *`) for `GET /api/notifications/dispatch`. Verified after deploy: 401 without the secret; aggregate `{accepted, retrying, failed, review}` counts with it. On a Pro plan, tighten the schedule toward five minutes or use an external scheduler.
+- Verified after deploy: `/api/health` → 200 `status: ok`; `/`, `/report`, `/login`, `/track` → 200. Run `pnpm rotate:passwords` with `NEW_ADMIN_PASSWORD` / `NEW_ANALYST_PASSWORD` to rotate the hosted account passwords again if they are ever exposed.
+- The hosted demo responder passwords were rotated to strong random values on 2026-11-11 (`pnpm rotate:passwords`). The values were shown to the owner only and are not committed anywhere. See "Demo credentials" below.
+- `.vercelignore` excludes local databases, env files, evidence storage, test artifacts, and the owner's untracked screenshot from CLI uploads. The owner's screenshot `c0e44930-f3a1-4424-a3fe-be72c37b4f80.jpg` remains local and untracked.
+- Verification before deploy: lint, typecheck, 32 local tests, and the production build all passed. Live login with the rotated admin password still needs a browser check by the owner (the agent could not drive an authenticated session end-to-end).
 
 ## Resend report notifications — 2026-11-08
 
@@ -98,15 +109,21 @@ For future runs, install normal Playwright system dependencies on the workstatio
 
 ## Demo credentials
 
-- Admin: `admin@cyberwatch.local` / `ChangeMe!2026`
-- Analyst: `analyst@cyberwatch.local` / `Analyst!2026`
-- Tracking: `CW-2026-DEMA247` / `SAFE-DEMA-TRAC-K2X6`
+- Admin: `admin@cyberwatch.local` / rotated 2026-11-11 (strong random value shown to the owner only; previous `ChangeMe!2026` no longer works)
+- Analyst: `analyst@cyberwatch.local` / rotated 2026-11-11 (strong random value shown to the owner only; previous `Analyst!2026` no longer works)
+- Tracking: `CW-2026-DEMA247` / `SAFE-DEMA-TRAC-K2X6` (unchanged; hashes preserved)
 
-These credentials and sample incidents are development-only. The analyst display name is configured to Victor Ibiloju at the user's request.
+These credentials and sample incidents are development/demo-only. The analyst display name is configured to Victor Ibiloju at the user's request. Rotate with `pnpm rotate:passwords` whenever credentials may have been exposed.
 
 ## Recommended next work
 
-The user selected <https://github.com/vincentofweb3/cyberwatch-oau> for publication. PostgreSQL and Resend report notifications are implemented. Next validate a Vercel preview with a separate database/branch, strong responder credentials, the correct app origin, and scheduled notification retries. See [deployment setup](./docs/deployment-setup.md). The notification recipient is private configuration and should not be committed.
+The production Vercel deployment is live with rotated responder credentials, the correct `APP_ORIGIN`, and a daily cron for notification retries (see the Vercel section above). Remaining deployment hygiene:
+
+- Exercise the live site with fictional data: submit a report, confirm it persists in Neon and appears in the analyst workspace, check private tracking, and confirm the Gmail notification arrives. Test the delivery-failure retry path before relying on the daily cron.
+- Keep preview deployments on a separate Neon branch with email disabled.
+- Replace the resend.dev test sender with a verified custom domain before sending to anyone other than the Resend account email (steps in [email delivery](./docs/email-delivery.md)).
+
+Then, in priority order:
 
 1. Consider a personal assigned queue, follow-up reminders, incident trends, and minimized exports. Decide separately whether quiz analytics should be anonymous or tied to accounts.
 2. Conduct supervised usability testing with students and department responders.

@@ -1,6 +1,6 @@
 # CyberWatch OAU Implementation Plan
 
-Last updated: 2026-11-08
+Last updated: 2026-11-11
 
 This file is the execution ledger. Any future agent should update the checkboxes, the decision log, and `HANDOFF.md` before ending work.
 
@@ -93,7 +93,19 @@ This file is the execution ledger. Any future agent should update the checkboxes
 - [x] Document custom sender-domain verification, delivery status limitations, and deployment scheduling.
 - [x] Finish final verification and publish the Resend checkpoint to GitHub.
 
+## Vercel production deployment
+
+- [x] Deploy the production build to Vercel (`vercel deploy --prod`, project `cyberwatch-oau`, live at <https://cyberwatch-oau.vercel.app>).
+- [x] Configure production environment settings (pooled `DATABASE_URL`, `SESSION_SECRET`, `APP_ORIGIN`, Resend settings, `CRON_SECRET`); keep migration/`NEON_*`/`DEMO_*` settings out of Vercel.
+- [x] Register a Hobby-safe daily cron (`0 6 * * *`) for `/api/notifications/dispatch` in `vercel.json` and verify the endpoint rejects unauthenticated calls and returns aggregate counts with `CRON_SECRET`.
+- [x] Rotate the hosted demo responder passwords with `pnpm rotate:passwords`; values shown to the owner only, never committed.
+- [x] Verify `/api/health` (200) and public routes (`/`, `/report`, `/login`, `/track` → 200) after deployment.
+- [x] Add `.vercelignore` so local databases, env files, and owner artifacts are never uploaded.
+- [ ] Owner to exercise the live site with fictional data end to end (report → Gmail notification → analyst workflow → private tracking) and report the browser result of the rotated admin login.
+
 ## Verification record
+
+On 2026-11-11, the production deployment to Vercel was completed. Lint, typecheck, 32 local tests, and the production build passed before deploying. After deployment: `/api/health` returned 200 with `status: ok`; `/`, `/report`, `/login`, and `/track` returned 200; `/api/notifications/dispatch` returned 401 without `CRON_SECRET` and aggregate counts with it; the hosted demo responder passwords were rotated with `pnpm rotate:passwords`. `APP_ORIGIN` matches the production URL. The owner's end-to-end browser pass with the rotated credentials remains pending.
 
 On 2026-11-08, the Resend integration passed 32 local tests, 19 live PostgreSQL tests, all 12 desktop/mobile browser checks, lint, formatting, TypeScript, and the production build. The user confirmed that the fictional report notification arrived in the Gmail Inbox. Final checks used the corrected Neon connection timeout, with test servers and temporary schemas cleaned up. Real credentials and the user's screenshot were excluded from publication.
 
@@ -139,3 +151,5 @@ The MVP is done when a user can submit and privately track a report; an authoriz
 | 2026-11-08 | Persist minimized email jobs and bounded idempotent retries                | Keeps email failures separate from report saving and avoids blind duplicate sends                                     |
 | 2026-11-08 | Coordinate request limits in PostgreSQL                                    | Preserves abuse limits across restarts and multiple server instances                                                  |
 | 2026-11-08 | Allow two seconds per connection address when using Neon                   | Resolves premature Node address-selection timeouts on higher-latency networks while retaining verified TLS            |
+| 2026-11-11 | Deploy production to Vercel and register a daily cron (06:00 UTC)          | Makes the app publicly reachable and the retry dispatch durable; Hobby plans allow only daily crons                   |
+| 2026-11-11 | Rotate hosted demo responder passwords at deployment                       | Shared deployments must not use the seeded demo credentials; values were shown to the owner only                      |

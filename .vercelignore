@@ -1,0 +1,16 @@
+.git
+.vercel
+node_modules
+.next
+out
+build
+coverage
+test-results
+playwright-report
+.env*
+!.env.example
+data
+storage/evidence
+*.tsbuildinfo
+c0e44930-f3a1-4424-a3fe-be72c37b4f80.jpg
+.env.local.before-*

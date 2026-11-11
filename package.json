@@ -21,6 +21,7 @@
     "test:smoke": "node scripts/smoke-production.mjs",
     "notifications:retry": "node --import tsx scripts/notifications.ts",
     "notifications:work": "node --import tsx scripts/notifications.ts --watch",
+    "rotate:passwords": "node --import tsx scripts/rotate-passwords.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "node --import tsx scripts/migrate.ts",
